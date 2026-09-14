@@ -1,0 +1,96 @@
+{
+  "_comment": [
+    "The terminal failure path: a task that fails unrecoverably, and a run that",
+    "ends in run.failed rather than run.completed. Also the only fixture with no",
+    "plan.built, which is what a replay joining mid-stream looks like.",
+    "",
+    "THE 'expected' BLOCK IS HAND-WRITTEN AND MUST STAY HAND-WRITTEN.",
+    "Never paste summarise() output into it. See the note in phase0_events.json."
+  ],
+
+  "name": "phase0-failed-run",
+  "description": "An unrecoverable task failure ends the run.",
+
+  "events": [
+    {
+      "type": "run.started",
+      "run_id": "run_phase0_failed",
+      "seq": 0,
+      "at": 0,
+      "requirement_title": "Broken run",
+      "seed": 7,
+      "speed": 1
+    },
+    {
+      "type": "agent.spawned",
+      "run_id": "run_phase0_failed",
+      "seq": 1,
+      "at": 8,
+      "agent_id": "etl",
+      "role": "ETL Engineer",
+      "assigned_task_ids": ["1.1"]
+    },
+    {
+      "type": "task.started",
+      "run_id": "run_phase0_failed",
+      "seq": 2,
+      "at": 12,
+      "task_id": "1.1",
+      "agent_id": "etl"
+    },
+    {
+      "type": "log.emitted",
+      "run_id": "run_phase0_failed",
+      "seq": 3,
+      "at": 40,
+      "agent_id": null,
+      "task_id": "1.1",
+      "level": "error",
+      "message": "[kernel] read_csv: shipments.csv not found",
+      "source": "runtime"
+    },
+    {
+      "type": "task.failed",
+      "run_id": "run_phase0_failed",
+      "seq": 4,
+      "at": 52,
+      "task_id": "1.1",
+      "agent_id": "etl",
+      "reason": "shipments.csv is missing from the dataset",
+      "recoverable": false
+    },
+    {
+      "type": "run.failed",
+      "run_id": "run_phase0_failed",
+      "seq": 5,
+      "at": 56,
+      "error": "Task 1.1 failed and cannot be retried."
+    }
+  ],
+
+  "expected": {
+    "last_seq": 5,
+    "run_id": "run_phase0_failed",
+    "seed": 7,
+    "speed": 1,
+    "requirement_title": "Broken run",
+    "started": true,
+    "completed": false,
+    "error": "Task 1.1 failed and cannot be retried.",
+    "duration_ms": null,
+    "task_status": {
+      "1.1": "failed"
+    },
+    "task_agent": {
+      "1.1": "etl"
+    },
+    "task_attempts": {},
+    "retry_count": 0,
+    "artifact_count": 0,
+    "artifact_ids": [],
+    "log_count": 1,
+    "agents_spawned": ["etl"],
+    "agents_idle": [],
+    "plan_task_count": 0
+  }
+}

@@ -1,0 +1,93 @@
+[project]
+name = "seed"
+version = "0.1.0"
+description = "Seed: a requirements document, decomposed and fulfilled by a team of agents."
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "sse-starlette>=2.1.3",
+    "pydantic>=2.9.0",
+    "polars>=1.12.0",
+    "markdown-it-py>=3.0.0",
+    "pygments>=2.18.0",
+]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.7.0",
+    "mypy>=1.13.0",
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "httpx>=0.27.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+# ---------------------------------------------------------------- ruff
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "W",      # pycodestyle, pyflakes
+    "I",                # isort
+    "N",                # pep8-naming
+    "UP",               # pyupgrade
+    "B",                # bugbear
+    "A",                # builtin shadowing
+    "C4",               # comprehensions
+    "SIM",              # simplify
+    "TID",              # tidy-imports, carries the banned-api rule below
+    "ANN",              # annotations, incl. ANN401 banning Any
+    "ASYNC",            # async correctness
+    "PT",               # pytest style
+    "PTH",              # pathlib over os.path
+    "T20",              # no print
+    "ARG",              # unused arguments
+    "RET",              # return simplification
+    "RUF",
+]
+ignore = [
+    "A003",             # Pydantic fields are named `id` by the frozen contract
+]
+
+# CLAUDE.md rule 8. Seeded randomness only, from one place.
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"random".msg = "Seeded randomness only. Use app.core.rng (CLAUDE.md rule 8)."
+"numpy.random".msg = "Banned. Use app.core.rng (CLAUDE.md rule 8)."
+
+[tool.ruff.lint.per-file-ignores]
+"app/core/rng.py" = ["TID251"]        # the one sanctioned import of `random`
+"scripts/export_schema.py" = ["T201"] # writes the schema to stdout by design
+"tests/*" = ["ANN401"]
+
+# ---------------------------------------------------------------- mypy
+
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+warn_unused_configs = true
+files = ["app", "scripts", "tests"]
+plugins = ["pydantic.mypy"]
+
+[tool.pydantic-mypy]
+init_forbid_extra = true
+init_typed = true
+warn_required_dynamic_aliases = true
+
+# ---------------------------------------------------------------- pytest
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-q --strict-markers"

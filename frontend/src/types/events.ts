@@ -1,0 +1,329 @@
+/**
+ * GENERATED FILE. DO NOT EDIT.
+ *
+ * Generated from backend/app/core/types.py, which is authoritative for the
+ * event contract. See docs/03-EVENT-CONTRACT.md.
+ *
+ * Regenerate with:  make types
+ */
+
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "SeedEvent".
+ */
+export type SeedEvent =
+  | RunStarted
+  | PlanBuilt
+  | AgentSpawned
+  | TaskReady
+  | TaskStarted
+  | TaskProgress
+  | LogEmitted
+  | ArtifactCreated
+  | TaskFailed
+  | TaskRetried
+  | TaskCompleted
+  | AgentIdle
+  | RunCompleted
+  | RunFailed;
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "AgentId".
+ */
+export type AgentId = "architect" | "etl" | "analytics" | "dashboard";
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "TaskStatus".
+ */
+export type TaskStatus = "pending" | "ready" | "running" | "retrying" | "completed" | "failed" | "skipped";
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "LogLevel".
+ */
+export type LogLevel = "debug" | "info" | "warn" | "error" | "success";
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ArtifactKind".
+ */
+export type ArtifactKind = "code" | "dataset" | "table" | "dashboard" | "doc";
+
+/**
+ * Generated from backend/app/core/types.py. See docs/03-EVENT-CONTRACT.md. Do not hand-edit the TypeScript.
+ */
+export interface SeedContract {
+  SeedEvent: SeedEvent;
+  Plan: Plan;
+  Artifact: Artifact;
+  AgentId: AgentId;
+  TaskStatus: TaskStatus;
+  LogLevel: LogLevel;
+  ArtifactKind: ArtifactKind;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "RunStarted".
+ */
+export interface RunStarted {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "run.started";
+  requirement_title: string;
+  seed: number;
+  speed: number;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "PlanBuilt".
+ */
+export interface PlanBuilt {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "plan.built";
+  plan: Plan;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "Plan".
+ */
+export interface Plan {
+  id: string;
+  title: string;
+  source_markdown: string;
+  phases: Phase[];
+  tasks: {
+    [k: string]: Task;
+  };
+  order: string[];
+  warnings: ParseWarning[];
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "Phase".
+ */
+export interface Phase {
+  id: string;
+  index: number;
+  title: string;
+  task_ids: string[];
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "Task".
+ */
+export interface Task {
+  id: string;
+  phase_id: string;
+  title: string;
+  agent_id: "architect" | "etl" | "analytics" | "dashboard";
+  depends_on: string[];
+  steps: TaskStep[];
+  constraints: Constraint[];
+  acceptance: string[];
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "TaskStep".
+ */
+export interface TaskStep {
+  id: string;
+  text: string;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "Constraint".
+ */
+export interface Constraint {
+  lang: string;
+  code: string;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ParseWarning".
+ */
+export interface ParseWarning {
+  code: "unassigned-agent" | "implicit-dependency" | "empty-task";
+  task_id?: string | null;
+  message: string;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "AgentSpawned".
+ */
+export interface AgentSpawned {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "agent.spawned";
+  agent_id: "architect" | "etl" | "analytics" | "dashboard";
+  role: string;
+  assigned_task_ids: string[];
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "TaskReady".
+ */
+export interface TaskReady {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "task.ready";
+  task_id: string;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "TaskStarted".
+ */
+export interface TaskStarted {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "task.started";
+  task_id: string;
+  agent_id: "architect" | "etl" | "analytics" | "dashboard";
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "TaskProgress".
+ */
+export interface TaskProgress {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "task.progress";
+  task_id: string;
+  step_id: string;
+  pct: number;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "LogEmitted".
+ */
+export interface LogEmitted {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "log.emitted";
+  agent_id?: ("architect" | "etl" | "analytics" | "dashboard") | null;
+  task_id?: string | null;
+  level: "debug" | "info" | "warn" | "error" | "success";
+  message: string;
+  source: "agent" | "runtime";
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ArtifactCreated".
+ */
+export interface ArtifactCreated {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "artifact.created";
+  artifact: Artifact;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "Artifact".
+ */
+export interface Artifact {
+  id: string;
+  kind: "code" | "dataset" | "table" | "dashboard" | "doc";
+  path: string;
+  produced_by: "architect" | "etl" | "analytics" | "dashboard";
+  task_id: string;
+  bytes: number;
+  lang?: string | null;
+  rows?: number | null;
+  columns?: string[] | null;
+  preview?: string[][] | null;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "TaskFailed".
+ */
+export interface TaskFailed {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "task.failed";
+  task_id: string;
+  agent_id: "architect" | "etl" | "analytics" | "dashboard";
+  reason: string;
+  recoverable: boolean;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "TaskRetried".
+ */
+export interface TaskRetried {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "task.retried";
+  task_id: string;
+  agent_id: "architect" | "etl" | "analytics" | "dashboard";
+  attempt: number;
+  strategy: string;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "TaskCompleted".
+ */
+export interface TaskCompleted {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "task.completed";
+  task_id: string;
+  agent_id: "architect" | "etl" | "analytics" | "dashboard";
+  metrics: TaskMetrics;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "TaskMetrics".
+ */
+export interface TaskMetrics {
+  rows_in?: number | null;
+  rows_out?: number | null;
+  rows_dropped?: number | null;
+  columns_added?: string[] | null;
+  null_rates?: {
+    [k: string]: number;
+  } | null;
+  duration_ms: number;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "AgentIdle".
+ */
+export interface AgentIdle {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "agent.idle";
+  agent_id: "architect" | "etl" | "analytics" | "dashboard";
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "RunCompleted".
+ */
+export interface RunCompleted {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "run.completed";
+  duration_ms: number;
+  artifact_ids: string[];
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "RunFailed".
+ */
+export interface RunFailed {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "run.failed";
+  error: string;
+}

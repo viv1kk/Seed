@@ -56,21 +56,29 @@ Do not add libraries beyond this list without saying in the commit what it repla
 
 ## Commands
 
+Everything goes through `tasks.py`. Use these, not the underlying tools.
+
 ```bash
-uv sync                           # backend deps
-uv run uvicorn app.main:app --reload --port 8000
-uv run python -m scripts.generate_data
-uv run pytest
-uv run ruff check . && uv run mypy .
-
-npm --prefix frontend run dev     # Vite on 5173, proxies /api to 8000
-npm --prefix frontend run build   # typecheck + build into frontend/dist
-npm --prefix frontend run typecheck
-
-make demo                         # build frontend, then serve everything from uvicorn on 8000
+python tasks.py install   # both toolchains, from scratch
+python tasks.py check     # the gate: ruff, mypy, pytest, tsc, node --test, vite build
+python tasks.py types     # regenerate frontend/src/types/events.ts from the Pydantic models
+python tasks.py api       # backend on 8000, reloading
+python tasks.py web       # frontend on 5173, proxying /api to 8000
 ```
 
-`make demo` is how the client sees it. Test on that path, not on the Vite dev server.
+`make check` and the rest work identically where `make` exists; the Makefile just
+delegates. `make demo` arrives in phase 2, once `main.py` mounts the built frontend
+and one process serves everything. That is how the client sees it, so test on that
+path rather than on the Vite dev server.
+
+`uv` is the intended package manager and the pyproject is a uv project, but it does
+not run on every build machine (Windows Application Control blocks it on at least
+one), so `tasks.py` drives a plain `backend/.venv` instead and `uv.lock` is not yet
+committed. Where uv runs, `uv sync` and `uv run <cmd>` are equivalent and preferred;
+generate and commit the lock file from there.
+
+Run a single test file with `backend/.venv/Scripts/python -m pytest tests/test_clock.py`
+(`backend/.venv/bin/python` off Windows).
 
 ## Code conventions
 
@@ -82,7 +90,7 @@ Keep files under about 250 lines. Split by responsibility.
 
 ## Definition of done, per phase
 
-The phase gate in `docs/07-IMPLEMENTATION-PLAN.md` passes, `uv run ruff check . && uv run mypy . && uv run pytest` is clean, `npm --prefix frontend run build` is clean, and a full run completes with no server exception and no browser console error. Do not start the next phase before the gate passes. Do not skip ahead to visual polish.
+The phase gate in `docs/07-IMPLEMENTATION-PLAN.md` passes, `python tasks.py check` is clean, and a full run completes with no server exception and no browser console error. Do not start the next phase before the gate passes. Do not skip ahead to visual polish.
 
 ## Writing copy
 

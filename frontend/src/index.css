@@ -1,0 +1,4 @@
+/* Tailwind v4 is configured in CSS, not in a JS config file.
+   Tokens, fonts, and everything else visual arrive in phase 4. See
+   docs/06-UI-SPEC.md. Do not start styling before then. */
+@import "tailwindcss";

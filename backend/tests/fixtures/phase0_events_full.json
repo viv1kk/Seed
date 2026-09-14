@@ -1,0 +1,211 @@
+{
+  "_comment": [
+    "Covers the event variants the ten-event gate fixture does not reach:",
+    "task.progress, agent.idle, run.completed, and a second agent taking a second",
+    "task. Between this file and phase0_events.json, every branch of both",
+    "reducers is exercised.",
+    "",
+    "THE 'expected' BLOCK IS HAND-WRITTEN AND MUST STAY HAND-WRITTEN.",
+    "Never paste summarise() output into it. See the note in phase0_events.json."
+  ],
+
+  "name": "phase0-full-run",
+  "description": "Two tasks, two agents, no failure, run completes.",
+
+  "events": [
+    {
+      "type": "run.started",
+      "run_id": "run_phase0_full",
+      "seq": 0,
+      "at": 0,
+      "requirement_title": "Logistics ops",
+      "seed": 99,
+      "speed": 5
+    },
+    {
+      "type": "plan.built",
+      "run_id": "run_phase0_full",
+      "seq": 1,
+      "at": 10,
+      "plan": {
+        "id": "plan_phase0_full",
+        "title": "Logistics ops",
+        "source_markdown": "# Logistics ops\n",
+        "phases": [
+          { "id": "1", "index": 1, "title": "Ingest", "task_ids": ["1.1"] },
+          { "id": "2", "index": 2, "title": "Report", "task_ids": ["2.1"] }
+        ],
+        "tasks": {
+          "1.1": {
+            "id": "1.1",
+            "phase_id": "1",
+            "title": "Load shipments",
+            "agent_id": "etl",
+            "depends_on": [],
+            "steps": [{ "id": "1.1.1", "text": "Read shipments.csv" }],
+            "constraints": [],
+            "acceptance": []
+          },
+          "2.1": {
+            "id": "2.1",
+            "phase_id": "2",
+            "title": "Build the dashboard",
+            "agent_id": "dashboard",
+            "depends_on": ["1.1"],
+            "steps": [{ "id": "2.1.1", "text": "Bind the chart spec" }],
+            "constraints": [],
+            "acceptance": ["Every figure comes from the pipeline"]
+          }
+        },
+        "order": ["1.1", "2.1"],
+        "warnings": [
+          {
+            "code": "implicit-dependency",
+            "task_id": "2.1",
+            "message": "No Depends on line. Assumed every task in phase 1."
+          }
+        ]
+      }
+    },
+    {
+      "type": "agent.spawned",
+      "run_id": "run_phase0_full",
+      "seq": 2,
+      "at": 14,
+      "agent_id": "etl",
+      "role": "ETL Engineer",
+      "assigned_task_ids": ["1.1"]
+    },
+    {
+      "type": "agent.spawned",
+      "run_id": "run_phase0_full",
+      "seq": 3,
+      "at": 16,
+      "agent_id": "dashboard",
+      "role": "Dashboard Engineer",
+      "assigned_task_ids": ["2.1"]
+    },
+    {
+      "type": "task.ready",
+      "run_id": "run_phase0_full",
+      "seq": 4,
+      "at": 20,
+      "task_id": "1.1"
+    },
+    {
+      "type": "task.started",
+      "run_id": "run_phase0_full",
+      "seq": 5,
+      "at": 24,
+      "task_id": "1.1",
+      "agent_id": "etl"
+    },
+    {
+      "type": "task.progress",
+      "run_id": "run_phase0_full",
+      "seq": 6,
+      "at": 60,
+      "task_id": "1.1",
+      "step_id": "1.1.1",
+      "pct": 0.5
+    },
+    {
+      "type": "task.completed",
+      "run_id": "run_phase0_full",
+      "seq": 7,
+      "at": 120,
+      "task_id": "1.1",
+      "agent_id": "etl",
+      "metrics": { "rows_in": 4400, "rows_out": 4400, "duration_ms": 96 }
+    },
+    {
+      "type": "agent.idle",
+      "run_id": "run_phase0_full",
+      "seq": 8,
+      "at": 124,
+      "agent_id": "etl"
+    },
+    {
+      "type": "task.ready",
+      "run_id": "run_phase0_full",
+      "seq": 9,
+      "at": 128,
+      "task_id": "2.1"
+    },
+    {
+      "type": "task.started",
+      "run_id": "run_phase0_full",
+      "seq": 10,
+      "at": 132,
+      "task_id": "2.1",
+      "agent_id": "dashboard"
+    },
+    {
+      "type": "artifact.created",
+      "run_id": "run_phase0_full",
+      "seq": 11,
+      "at": 200,
+      "artifact": {
+        "id": "art_dash_spec",
+        "kind": "code",
+        "path": "dashboard/spec.json",
+        "produced_by": "dashboard",
+        "task_id": "2.1",
+        "bytes": 812,
+        "lang": "json"
+      }
+    },
+    {
+      "type": "task.completed",
+      "run_id": "run_phase0_full",
+      "seq": 12,
+      "at": 210,
+      "task_id": "2.1",
+      "agent_id": "dashboard",
+      "metrics": { "duration_ms": 78 }
+    },
+    {
+      "type": "agent.idle",
+      "run_id": "run_phase0_full",
+      "seq": 13,
+      "at": 214,
+      "agent_id": "dashboard"
+    },
+    {
+      "type": "run.completed",
+      "run_id": "run_phase0_full",
+      "seq": 14,
+      "at": 220,
+      "duration_ms": 220,
+      "artifact_ids": ["art_dash_spec"]
+    }
+  ],
+
+  "expected": {
+    "last_seq": 14,
+    "run_id": "run_phase0_full",
+    "seed": 99,
+    "speed": 5,
+    "requirement_title": "Logistics ops",
+    "started": true,
+    "completed": true,
+    "error": null,
+    "duration_ms": 220,
+    "task_status": {
+      "1.1": "completed",
+      "2.1": "completed"
+    },
+    "task_agent": {
+      "1.1": "etl",
+      "2.1": "dashboard"
+    },
+    "task_attempts": {},
+    "retry_count": 0,
+    "artifact_count": 1,
+    "artifact_ids": ["art_dash_spec"],
+    "log_count": 0,
+    "agents_spawned": ["dashboard", "etl"],
+    "agents_idle": ["dashboard", "etl"],
+    "plan_task_count": 2
+  }
+}

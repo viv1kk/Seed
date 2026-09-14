@@ -1,0 +1,1088 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SeedContract",
+  "description": "Generated from backend/app/core/types.py. See docs/03-EVENT-CONTRACT.md. Do not hand-edit the TypeScript.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "SeedEvent": {
+      "$ref": "#/definitions/SeedEvent"
+    },
+    "Plan": {
+      "$ref": "#/definitions/Plan"
+    },
+    "Artifact": {
+      "$ref": "#/definitions/Artifact"
+    },
+    "AgentId": {
+      "$ref": "#/definitions/AgentId"
+    },
+    "TaskStatus": {
+      "$ref": "#/definitions/TaskStatus"
+    },
+    "LogLevel": {
+      "$ref": "#/definitions/LogLevel"
+    },
+    "ArtifactKind": {
+      "$ref": "#/definitions/ArtifactKind"
+    }
+  },
+  "required": [
+    "SeedEvent",
+    "Plan",
+    "Artifact",
+    "AgentId",
+    "TaskStatus",
+    "LogLevel",
+    "ArtifactKind"
+  ],
+  "definitions": {
+    "AgentIdle": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "agent.idle",
+          "default": "agent.idle",
+          "type": "string"
+        },
+        "agent_id": {
+          "enum": [
+            "architect",
+            "etl",
+            "analytics",
+            "dashboard"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "agent_id",
+        "type"
+      ],
+      "title": "AgentIdle",
+      "type": "object"
+    },
+    "AgentSpawned": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "agent.spawned",
+          "default": "agent.spawned",
+          "type": "string"
+        },
+        "agent_id": {
+          "enum": [
+            "architect",
+            "etl",
+            "analytics",
+            "dashboard"
+          ],
+          "type": "string"
+        },
+        "role": {
+          "type": "string"
+        },
+        "assigned_task_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "agent_id",
+        "role",
+        "assigned_task_ids",
+        "type"
+      ],
+      "title": "AgentSpawned",
+      "type": "object"
+    },
+    "Artifact": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "code",
+            "dataset",
+            "table",
+            "dashboard",
+            "doc"
+          ],
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "produced_by": {
+          "enum": [
+            "architect",
+            "etl",
+            "analytics",
+            "dashboard"
+          ],
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "bytes": {
+          "type": "integer"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rows": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "columns": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "path",
+        "produced_by",
+        "task_id",
+        "bytes"
+      ],
+      "title": "Artifact",
+      "type": "object"
+    },
+    "ArtifactCreated": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "artifact.created",
+          "default": "artifact.created",
+          "type": "string"
+        },
+        "artifact": {
+          "$ref": "#/definitions/Artifact"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "artifact",
+        "type"
+      ],
+      "title": "ArtifactCreated",
+      "type": "object"
+    },
+    "Constraint": {
+      "properties": {
+        "lang": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "lang",
+        "code"
+      ],
+      "title": "Constraint",
+      "type": "object"
+    },
+    "LogEmitted": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "log.emitted",
+          "default": "log.emitted",
+          "type": "string"
+        },
+        "agent_id": {
+          "anyOf": [
+            {
+              "enum": [
+                "architect",
+                "etl",
+                "analytics",
+                "dashboard"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "level": {
+          "enum": [
+            "debug",
+            "info",
+            "warn",
+            "error",
+            "success"
+          ],
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        },
+        "source": {
+          "enum": [
+            "agent",
+            "runtime"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "level",
+        "message",
+        "source",
+        "type"
+      ],
+      "title": "LogEmitted",
+      "type": "object"
+    },
+    "ParseWarning": {
+      "properties": {
+        "code": {
+          "enum": [
+            "unassigned-agent",
+            "implicit-dependency",
+            "empty-task"
+          ],
+          "type": "string"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ParseWarning",
+      "type": "object"
+    },
+    "Phase": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "index": {
+          "type": "integer"
+        },
+        "title": {
+          "type": "string"
+        },
+        "task_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "index",
+        "title",
+        "task_ids"
+      ],
+      "title": "Phase",
+      "type": "object"
+    },
+    "Plan": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "source_markdown": {
+          "type": "string"
+        },
+        "phases": {
+          "items": {
+            "$ref": "#/definitions/Phase"
+          },
+          "type": "array"
+        },
+        "tasks": {
+          "additionalProperties": {
+            "$ref": "#/definitions/Task"
+          },
+          "type": "object"
+        },
+        "order": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/definitions/ParseWarning"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "title",
+        "source_markdown",
+        "phases",
+        "tasks",
+        "order",
+        "warnings"
+      ],
+      "title": "Plan",
+      "type": "object"
+    },
+    "PlanBuilt": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "plan.built",
+          "default": "plan.built",
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/definitions/Plan"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "plan",
+        "type"
+      ],
+      "title": "PlanBuilt",
+      "type": "object"
+    },
+    "RunCompleted": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "run.completed",
+          "default": "run.completed",
+          "type": "string"
+        },
+        "duration_ms": {
+          "type": "integer"
+        },
+        "artifact_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "duration_ms",
+        "artifact_ids",
+        "type"
+      ],
+      "title": "RunCompleted",
+      "type": "object"
+    },
+    "RunFailed": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "run.failed",
+          "default": "run.failed",
+          "type": "string"
+        },
+        "error": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "error",
+        "type"
+      ],
+      "title": "RunFailed",
+      "type": "object"
+    },
+    "RunStarted": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "run.started",
+          "default": "run.started",
+          "type": "string"
+        },
+        "requirement_title": {
+          "type": "string"
+        },
+        "seed": {
+          "type": "integer"
+        },
+        "speed": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "requirement_title",
+        "seed",
+        "speed",
+        "type"
+      ],
+      "title": "RunStarted",
+      "type": "object"
+    },
+    "Task": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "phase_id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "agent_id": {
+          "enum": [
+            "architect",
+            "etl",
+            "analytics",
+            "dashboard"
+          ],
+          "type": "string"
+        },
+        "depends_on": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "steps": {
+          "items": {
+            "$ref": "#/definitions/TaskStep"
+          },
+          "type": "array"
+        },
+        "constraints": {
+          "items": {
+            "$ref": "#/definitions/Constraint"
+          },
+          "type": "array"
+        },
+        "acceptance": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "id",
+        "phase_id",
+        "title",
+        "agent_id",
+        "depends_on",
+        "steps",
+        "constraints",
+        "acceptance"
+      ],
+      "title": "Task",
+      "type": "object"
+    },
+    "TaskCompleted": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "task.completed",
+          "default": "task.completed",
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "agent_id": {
+          "enum": [
+            "architect",
+            "etl",
+            "analytics",
+            "dashboard"
+          ],
+          "type": "string"
+        },
+        "metrics": {
+          "$ref": "#/definitions/TaskMetrics"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "task_id",
+        "agent_id",
+        "metrics",
+        "type"
+      ],
+      "title": "TaskCompleted",
+      "type": "object"
+    },
+    "TaskFailed": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "task.failed",
+          "default": "task.failed",
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "agent_id": {
+          "enum": [
+            "architect",
+            "etl",
+            "analytics",
+            "dashboard"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "recoverable": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "task_id",
+        "agent_id",
+        "reason",
+        "recoverable",
+        "type"
+      ],
+      "title": "TaskFailed",
+      "type": "object"
+    },
+    "TaskMetrics": {
+      "properties": {
+        "rows_in": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rows_out": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rows_dropped": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "columns_added": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "null_rates": {
+          "anyOf": [
+            {
+              "additionalProperties": {
+                "type": "number"
+              },
+              "type": "object"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "duration_ms": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "duration_ms"
+      ],
+      "title": "TaskMetrics",
+      "type": "object"
+    },
+    "TaskProgress": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "task.progress",
+          "default": "task.progress",
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "step_id": {
+          "type": "string"
+        },
+        "pct": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "task_id",
+        "step_id",
+        "pct",
+        "type"
+      ],
+      "title": "TaskProgress",
+      "type": "object"
+    },
+    "TaskReady": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "task.ready",
+          "default": "task.ready",
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "task_id",
+        "type"
+      ],
+      "title": "TaskReady",
+      "type": "object"
+    },
+    "TaskRetried": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "task.retried",
+          "default": "task.retried",
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "agent_id": {
+          "enum": [
+            "architect",
+            "etl",
+            "analytics",
+            "dashboard"
+          ],
+          "type": "string"
+        },
+        "attempt": {
+          "type": "integer"
+        },
+        "strategy": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "task_id",
+        "agent_id",
+        "attempt",
+        "strategy",
+        "type"
+      ],
+      "title": "TaskRetried",
+      "type": "object"
+    },
+    "TaskStarted": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "task.started",
+          "default": "task.started",
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        },
+        "agent_id": {
+          "enum": [
+            "architect",
+            "etl",
+            "analytics",
+            "dashboard"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "task_id",
+        "agent_id",
+        "type"
+      ],
+      "title": "TaskStarted",
+      "type": "object"
+    },
+    "TaskStep": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "text"
+      ],
+      "title": "TaskStep",
+      "type": "object"
+    },
+    "SeedEvent": {
+      "discriminator": {
+        "mapping": {
+          "agent.idle": "#/definitions/AgentIdle",
+          "agent.spawned": "#/definitions/AgentSpawned",
+          "artifact.created": "#/definitions/ArtifactCreated",
+          "log.emitted": "#/definitions/LogEmitted",
+          "plan.built": "#/definitions/PlanBuilt",
+          "run.completed": "#/definitions/RunCompleted",
+          "run.failed": "#/definitions/RunFailed",
+          "run.started": "#/definitions/RunStarted",
+          "task.completed": "#/definitions/TaskCompleted",
+          "task.failed": "#/definitions/TaskFailed",
+          "task.progress": "#/definitions/TaskProgress",
+          "task.ready": "#/definitions/TaskReady",
+          "task.retried": "#/definitions/TaskRetried",
+          "task.started": "#/definitions/TaskStarted"
+        },
+        "propertyName": "type"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/definitions/RunStarted"
+        },
+        {
+          "$ref": "#/definitions/PlanBuilt"
+        },
+        {
+          "$ref": "#/definitions/AgentSpawned"
+        },
+        {
+          "$ref": "#/definitions/TaskReady"
+        },
+        {
+          "$ref": "#/definitions/TaskStarted"
+        },
+        {
+          "$ref": "#/definitions/TaskProgress"
+        },
+        {
+          "$ref": "#/definitions/LogEmitted"
+        },
+        {
+          "$ref": "#/definitions/ArtifactCreated"
+        },
+        {
+          "$ref": "#/definitions/TaskFailed"
+        },
+        {
+          "$ref": "#/definitions/TaskRetried"
+        },
+        {
+          "$ref": "#/definitions/TaskCompleted"
+        },
+        {
+          "$ref": "#/definitions/AgentIdle"
+        },
+        {
+          "$ref": "#/definitions/RunCompleted"
+        },
+        {
+          "$ref": "#/definitions/RunFailed"
+        }
+      ]
+    },
+    "AgentId": {
+      "enum": [
+        "architect",
+        "etl",
+        "analytics",
+        "dashboard"
+      ],
+      "type": "string"
+    },
+    "TaskStatus": {
+      "enum": [
+        "pending",
+        "ready",
+        "running",
+        "retrying",
+        "completed",
+        "failed",
+        "skipped"
+      ],
+      "type": "string"
+    },
+    "LogLevel": {
+      "enum": [
+        "debug",
+        "info",
+        "warn",
+        "error",
+        "success"
+      ],
+      "type": "string"
+    },
+    "ArtifactKind": {
+      "enum": [
+        "code",
+        "dataset",
+        "table",
+        "dashboard",
+        "doc"
+      ],
+      "type": "string"
+    }
+  }
+}
