@@ -67,6 +67,7 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "app/core/rng.py" = ["TID251"]        # the one sanctioned import of `random`
 "scripts/export_schema.py" = ["T201"] # writes the schema to stdout by design
+"scripts/generate_data.py" = ["T201"]  # reports what it wrote
 "tests/*" = ["ANN401"]
 
 # ---------------------------------------------------------------- mypy

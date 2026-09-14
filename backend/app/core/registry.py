@@ -4,9 +4,8 @@ A run's reproducible state is created in one place, ``create_run``, so that the
 bus, the clock, and the seeded generator for a run can never be assembled
 inconsistently.
 
-Scope note: this holds runs only. Plan storage arrives with ``POST /api/plans``
-in phase 1, and the retained derived frame for the cross-filter query endpoint
-arrives in phase 3.
+Scope note: the retained derived frame that the cross-filter query endpoint
+reads arrives in phase 3.
 """
 
 import asyncio
@@ -17,6 +16,7 @@ from dataclasses import dataclass, field
 from app.core.clock import Clock
 from app.core.events import EventBus
 from app.core.rng import DEFAULT_SEED, Rng, make_rng
+from app.core.types import Plan
 
 
 @dataclass
@@ -36,9 +36,32 @@ class RunNotFoundError(KeyError):
     """Raised by ``require`` when a run id is unknown."""
 
 
+class PlanNotFoundError(KeyError):
+    """Raised by ``require_plan`` when a plan id is unknown."""
+
+
 class RunRegistry:
     def __init__(self) -> None:
         self._runs: dict[str, RunRecord] = {}
+        self._plans: dict[str, Plan] = {}
+
+    # ------------------------------------------------------------ plans
+
+    def put_plan(self, plan: Plan) -> Plan:
+        """Retain a parsed plan so a later POST /api/runs can find it by id."""
+        self._plans[plan.id] = plan
+        return plan
+
+    def get_plan(self, plan_id: str) -> Plan | None:
+        return self._plans.get(plan_id)
+
+    def require_plan(self, plan_id: str) -> Plan:
+        plan = self._plans.get(plan_id)
+        if plan is None:
+            raise PlanNotFoundError(plan_id)
+        return plan
+
+    # ------------------------------------------------------------ runs
 
     def create_run(
         self,

@@ -86,6 +86,25 @@ if (/\btype\??:\s*string;/.test(ts)) {
   problems.push("at least one `type` discriminant was widened to `string`");
 }
 
+// Any union tagged by a single-value literal must have that tag REQUIRED, or the
+// union does not discriminate and every switch over it silently stops being
+// exhaustive. Pydantic omits a tag from `required` because it has a default, so
+// this is a standing trap, not a one-off: SeedEvent tags on `type` and
+// ParseResult on `status`, and the next one will tag on something else again.
+for (const [, name] of ts.matchAll(/^\s*(\w+)\?:\s*"[^"|]*";$/gm)) {
+  problems.push(
+    `\`${name}\` is an optional single-value literal, so its union will not ` +
+      "discriminate (see _require_discriminants in export_schema.py)",
+  );
+}
+
+// Every union of interfaces we generate should be reachable by name.
+for (const expected of ["SeedEvent", "ParseResult"]) {
+  if (!new RegExp(`export type ${expected} =`).test(ts)) {
+    problems.push(`\`export type ${expected}\` is missing from the output`);
+  }
+}
+
 if (problems.length > 0) {
   console.error("gen:types produced a union that will not discriminate:\n");
   for (const problem of problems) console.error(`  - ${problem}`);

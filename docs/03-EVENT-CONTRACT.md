@@ -52,6 +52,32 @@ class Plan(BaseModel):
     order: list[str]             # topologically sorted task ids
     warnings: list[ParseWarning]
 
+class ParseError(BaseModel):
+    code: Literal[
+        "unknown-dependency", "self-dependency", "dependency-cycle",
+        "task-outside-phase", "no-tasks",
+    ]
+    task_id: str | None = None
+    message: str
+
+class ParseSucceeded(BaseModel):
+    status: Literal["ok"] = "ok"
+    plan: Plan
+
+class ParseFailed(BaseModel):
+    status: Literal["error"] = "error"
+    errors: list[ParseError]
+    warnings: list[ParseWarning]
+
+ParseResult = Annotated[
+    Union[ParseSucceeded, ParseFailed],
+    Field(discriminator="status"),
+]
+
+class ExampleSummary(BaseModel):
+    id: str
+    title: str
+
 ArtifactKind = Literal["code", "dataset", "table", "dashboard", "doc"]
 
 class Artifact(BaseModel):
@@ -180,6 +206,23 @@ SeedEvent = Annotated[
 5. `artifact.created` precedes the `task.completed` of the producing task.
 6. `run.completed` is last. Nothing follows it.
 7. Numbers inside `metrics` and inside log messages originate from a `WorkKernel` return value. Never a literal.
+
+## Parse results
+
+`POST /api/plans` answers `ParseResult`, always with HTTP 200.
+
+A parse failure is a normal outcome, not a server fault: the requirement
+document belongs to the person using this, and a broken `Depends on:` reference
+is an ordinary thing to write. The frontend branches on `status` and renders
+either the plan or the errors. The run is refused by there being no plan, and so
+no plan id to start one with.
+
+`ParseResult` discriminates on `status`, exactly as `SeedEvent` discriminates on
+`type`. Both tags are marked required in the exported schema by
+`scripts/export_schema.py`, because Pydantic omits a defaulted field from
+`required` and an optional tag does not discriminate. Adding a third tagged
+union means checking it comes out the same way; `npm run gen:types` fails the
+build if it does not.
 
 ## SSE framing
 

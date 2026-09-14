@@ -1,0 +1,38 @@
+/**
+ * Fetch wrappers for the API.
+ *
+ * Four endpoints and no data-fetching library, per CLAUDE.md. Paths are
+ * relative: in development Vite proxies /api to port 8000, and in the built
+ * demo uvicorn serves the API and this bundle from one origin.
+ */
+
+import type { ExampleSummary, ParseResult } from "../types/events.ts";
+
+async function getJson<T>(path: string): Promise<T> {
+  const response = await fetch(path);
+  if (!response.ok) throw new Error(`${path} returned ${response.status}`);
+  return (await response.json()) as T;
+}
+
+export async function fetchExamples(): Promise<ExampleSummary[]> {
+  return getJson<ExampleSummary[]>("/api/examples");
+}
+
+/**
+ * Parse a requirement document.
+ *
+ * A rejected document is a 200 carrying `status: "error"`, not an HTTP failure,
+ * so the caller branches on the result rather than catching. Only a genuine
+ * transport or server fault throws.
+ */
+export async function createPlan(
+  body: { example_id: string } | { markdown: string },
+): Promise<ParseResult> {
+  const response = await fetch("/api/plans", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) throw new Error(`/api/plans returned ${response.status}`);
+  return (await response.json()) as ParseResult;
+}

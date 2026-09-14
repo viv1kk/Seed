@@ -1,51 +1,99 @@
 /**
- * Phase 0 shell. Deliberately unstyled.
+ * Phase 1 shell. Deliberately unstyled.
  *
- * It renders the backend health response and the number of events the store has
- * seen, which is enough to prove the dev proxy reaches the API and that the
- * store is wired. The plan room arrives in phase 4. Do not start styling here.
+ * Load an example, render the source document beside the plan the parser made
+ * of it. That pairing is the whole point of this screen: the plan is visibly
+ * derived from the text next to it, so editing a heading and reloading is a
+ * demonstration rather than a claim. The plan room arrives in phase 4.
  */
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
-import { useSeedStore } from "./useSeedStore.ts";
-
-interface Health {
-  status: string;
-  version: string;
-  mode: string;
-}
+import { createPlan, fetchExamples } from "../api/client.ts";
+import type { ExampleSummary, ParseError, Plan } from "../types/events.ts";
+import { PlanView } from "./PlanView.tsx";
 
 export function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [healthError, setHealthError] = useState<string | null>(null);
-  const lastSeq = useSeedStore((state) => state.run.lastSeq);
+  const [examples, setExamples] = useState<ExampleSummary[]>([]);
+  const [selected, setSelected] = useState<string | null>(null);
+  const [plan, setPlan] = useState<Plan | null>(null);
+  const [errors, setErrors] = useState<ParseError[]>([]);
+  const [failure, setFailure] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/health", { signal: controller.signal })
-      .then((response) => {
-        if (!response.ok) throw new Error(`Health check returned ${response.status}`);
-        return response.json() as Promise<Health>;
+    fetchExamples()
+      .then(setExamples)
+      .catch(() => setFailure("Cannot reach the backend. Start it on port 8000."));
+  }, []);
+
+  const load = useCallback((exampleId: string) => {
+    setLoading(true);
+    setSelected(exampleId);
+    setPlan(null);
+    setErrors([]);
+    setFailure(null);
+
+    createPlan({ example_id: exampleId })
+      .then((result) => {
+        // The backend decides whether the document is usable. This only draws
+        // the answer.
+        if (result.status === "ok") setPlan(result.plan);
+        else setErrors(result.errors);
       })
-      .then(setHealth)
       .catch((error: unknown) => {
-        if (controller.signal.aborted) return;
-        setHealthError(error instanceof Error ? error.message : String(error));
-      });
-    return () => controller.abort();
+        setFailure(error instanceof Error ? error.message : String(error));
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   return (
     <main>
       <h1>Seed</h1>
-      {health !== null && (
-        <p>
-          Backend {health.version}, {health.status}, {health.mode} mode.
-        </p>
+
+      <section>
+        <h2>Requirements</h2>
+        {examples.length === 0 && failure === null && <p>Loading examples.</p>}
+        <ul>
+          {examples.map((example) => (
+            <li key={example.id}>
+              <button type="button" onClick={() => load(example.id)}>
+                {example.title}
+              </button>
+              {selected === example.id && " (loaded)"}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      {failure !== null && <p>{failure}</p>}
+      {loading && <p>Parsing the requirement.</p>}
+
+      {errors.length > 0 && (
+        <section>
+          <h2>This requirement cannot be run</h2>
+          <p>Fix the document and load it again.</p>
+          <ul>
+            {errors.map((error, index) => (
+              <li key={`${error.code}-${index}`}>
+                {error.task_id !== null && error.task_id !== undefined && (
+                  <strong>{error.task_id} </strong>
+                )}
+                {error.message}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
-      {healthError !== null && <p>Cannot reach the backend. Start it on port 8000.</p>}
-      {health === null && healthError === null && <p>Checking the backend.</p>}
-      <p>Events applied: {lastSeq + 1}</p>
+
+      {plan !== null && (
+        <>
+          <PlanView plan={plan} />
+          <section>
+            <h2>Source document</h2>
+            <pre>{plan.source_markdown}</pre>
+          </section>
+        </>
+      )}
     </main>
   );
 }

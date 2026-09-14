@@ -3,6 +3,7 @@
 
     python tasks.py install     set up both toolchains
     python tasks.py types       regenerate the TypeScript contract
+    python tasks.py data        regenerate the bundled CSVs (commit the result)
     python tasks.py check       the full gate: lint, types, tests, build
     python tasks.py api         backend on 8000, reloading
     python tasks.py web         frontend on 5173, proxying /api to 8000
@@ -88,6 +89,11 @@ def types() -> None:
     run([NPM, "run", "gen:types"], FRONTEND, "generate TypeScript")
 
 
+def data() -> None:
+    """Regenerate the bundled dataset. The output is committed, so commit it."""
+    run([require_venv(), "-m", "scripts.generate_data"], BACKEND, "generate dataset")
+
+
 def check() -> None:
     """The phase gate. Everything, in the order that fails fastest."""
     python = require_venv()
@@ -114,6 +120,7 @@ def web() -> None:
 TASKS: dict[str, Callable[[], None]] = {
     "install": install,
     "types": types,
+    "data": data,
     "check": check,
     "api": api,
     "web": web,

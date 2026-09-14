@@ -61,6 +61,40 @@ class Plan(BaseModel):
     warnings: list[ParseWarning]
 
 
+class ParseError(BaseModel):
+    code: Literal[
+        "unknown-dependency",
+        "self-dependency",
+        "dependency-cycle",
+        "task-outside-phase",
+        "no-tasks",
+    ]
+    task_id: str | None = None
+    message: str
+
+
+class ParseSucceeded(BaseModel):
+    status: Literal["ok"] = "ok"
+    plan: Plan
+
+
+class ParseFailed(BaseModel):
+    status: Literal["error"] = "error"
+    errors: list[ParseError]
+    warnings: list[ParseWarning]
+
+
+ParseResult = Annotated[
+    Union[ParseSucceeded, ParseFailed],  # noqa: UP007
+    Field(discriminator="status"),
+]
+
+
+class ExampleSummary(BaseModel):
+    id: str
+    title: str
+
+
 ArtifactKind = Literal["code", "dataset", "table", "dashboard", "doc"]
 
 
@@ -210,8 +244,13 @@ __all__ = [
     "ArtifactCreated",
     "ArtifactKind",
     "Constraint",
+    "ExampleSummary",
     "LogEmitted",
     "LogLevel",
+    "ParseError",
+    "ParseFailed",
+    "ParseResult",
+    "ParseSucceeded",
     "ParseWarning",
     "Phase",
     "Plan",

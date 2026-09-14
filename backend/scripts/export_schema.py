@@ -33,7 +33,9 @@ from app.core.types import (
     AgentId,
     Artifact,
     ArtifactKind,
+    ExampleSummary,
     LogLevel,
+    ParseResult,
     Plan,
     SeedEvent,
     TaskStatus,
@@ -54,6 +56,8 @@ ROOTS: Final[dict[str, Any]] = {
     "SeedEvent": SeedEvent,
     "Plan": Plan,
     "Artifact": Artifact,
+    "ParseResult": ParseResult,
+    "ExampleSummary": ExampleSummary,
     "AgentId": AgentId,
     "TaskStatus": TaskStatus,
     "LogLevel": LogLevel,
@@ -85,23 +89,33 @@ def _strip_property_titles(node: object) -> None:
 
 
 def _require_discriminants(definitions: JsonObject) -> None:
-    """Mark the ``type`` discriminant required on every event variant.
+    """Mark every constant tag required, on every model that carries one.
 
-    Pydantic leaves ``type`` out of ``required`` because it carries a default.
-    That is wrong about the wire: ``model_dump`` always emits it, so every event
-    that reaches the frontend has one. Correcting it here is what makes the
-    generated union discriminated rather than a set of interfaces with an
-    optional tag, which in turn is what makes the store switch exhaustive.
+    Pydantic leaves a field out of ``required`` when it has a default, and a
+    discriminant always has one: ``type: Literal["run.started"] = "run.started"``.
+    That is wrong about the wire. A field whose schema is a ``const`` has exactly
+    one possible value and ``model_dump`` always emits it, so it is present on
+    every object that reaches the frontend.
+
+    Correcting it is what makes each generated union *discriminated* rather than
+    a set of interfaces with an optional tag, which in turn is what makes a
+    switch over it exhaustive and ``assertNever`` meaningful.
+
+    This deliberately keys on ``const`` rather than on the field name. The event
+    union tags on ``type`` and the parse result tags on ``status``; naming them
+    one at a time means the next union silently comes out undiscriminated.
     """
     for definition in definitions.values():
         if not isinstance(definition, dict):
             continue
-        discriminant = definition.get("properties", {}).get("type")
-        if not isinstance(discriminant, dict) or "const" not in discriminant:
+        properties = definition.get("properties", {})
+        if not isinstance(properties, dict):
             continue
+
         required: list[str] = definition.setdefault("required", [])
-        if "type" not in required:
-            required.append("type")
+        for name, prop in properties.items():
+            if isinstance(prop, dict) and "const" in prop and name not in required:
+                required.append(name)
 
 
 def build_schema() -> JsonObject:

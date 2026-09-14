@@ -14,6 +14,12 @@
     "Artifact": {
       "$ref": "#/definitions/Artifact"
     },
+    "ParseResult": {
+      "$ref": "#/definitions/ParseResult"
+    },
+    "ExampleSummary": {
+      "$ref": "#/definitions/ExampleSummary"
+    },
     "AgentId": {
       "$ref": "#/definitions/AgentId"
     },
@@ -31,6 +37,8 @@
     "SeedEvent",
     "Plan",
     "Artifact",
+    "ParseResult",
+    "ExampleSummary",
     "AgentId",
     "TaskStatus",
     "LogLevel",
@@ -1041,7 +1049,122 @@
         {
           "$ref": "#/definitions/RunFailed"
         }
-      ]
+      ],
+      "required": []
+    },
+    "ParseError": {
+      "properties": {
+        "code": {
+          "enum": [
+            "unknown-dependency",
+            "self-dependency",
+            "dependency-cycle",
+            "task-outside-phase",
+            "no-tasks"
+          ],
+          "type": "string"
+        },
+        "task_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "code",
+        "message"
+      ],
+      "title": "ParseError",
+      "type": "object"
+    },
+    "ParseFailed": {
+      "properties": {
+        "status": {
+          "const": "error",
+          "default": "error",
+          "type": "string"
+        },
+        "errors": {
+          "items": {
+            "$ref": "#/definitions/ParseError"
+          },
+          "type": "array"
+        },
+        "warnings": {
+          "items": {
+            "$ref": "#/definitions/ParseWarning"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "errors",
+        "warnings",
+        "status"
+      ],
+      "title": "ParseFailed",
+      "type": "object"
+    },
+    "ParseSucceeded": {
+      "properties": {
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "type": "string"
+        },
+        "plan": {
+          "$ref": "#/definitions/Plan"
+        }
+      },
+      "required": [
+        "plan",
+        "status"
+      ],
+      "title": "ParseSucceeded",
+      "type": "object"
+    },
+    "ParseResult": {
+      "discriminator": {
+        "mapping": {
+          "error": "#/definitions/ParseFailed",
+          "ok": "#/definitions/ParseSucceeded"
+        },
+        "propertyName": "status"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/definitions/ParseSucceeded"
+        },
+        {
+          "$ref": "#/definitions/ParseFailed"
+        }
+      ],
+      "required": []
+    },
+    "ExampleSummary": {
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "title"
+      ],
+      "title": "ExampleSummary",
+      "type": "object"
     },
     "AgentId": {
       "enum": [
@@ -1050,7 +1173,8 @@
         "analytics",
         "dashboard"
       ],
-      "type": "string"
+      "type": "string",
+      "required": []
     },
     "TaskStatus": {
       "enum": [
@@ -1062,7 +1186,8 @@
         "failed",
         "skipped"
       ],
-      "type": "string"
+      "type": "string",
+      "required": []
     },
     "LogLevel": {
       "enum": [
@@ -1072,7 +1197,8 @@
         "error",
         "success"
       ],
-      "type": "string"
+      "type": "string",
+      "required": []
     },
     "ArtifactKind": {
       "enum": [
@@ -1082,7 +1208,8 @@
         "dashboard",
         "doc"
       ],
-      "type": "string"
+      "type": "string",
+      "required": []
     }
   }
 }

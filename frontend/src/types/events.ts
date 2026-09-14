@@ -28,6 +28,11 @@ export type SeedEvent =
   | RunFailed;
 /**
  * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ParseResult".
+ */
+export type ParseResult = ParseSucceeded | ParseFailed;
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
  * via the `definition` "AgentId".
  */
 export type AgentId = "architect" | "etl" | "analytics" | "dashboard";
@@ -54,6 +59,8 @@ export interface SeedContract {
   SeedEvent: SeedEvent;
   Plan: Plan;
   Artifact: Artifact;
+  ParseResult: ParseResult;
+  ExampleSummary: ExampleSummary;
   AgentId: AgentId;
   TaskStatus: TaskStatus;
   LogLevel: LogLevel;
@@ -326,4 +333,38 @@ export interface RunFailed {
   at: number;
   type: "run.failed";
   error: string;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ParseSucceeded".
+ */
+export interface ParseSucceeded {
+  status: "ok";
+  plan: Plan;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ParseFailed".
+ */
+export interface ParseFailed {
+  status: "error";
+  errors: ParseError[];
+  warnings: ParseWarning[];
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ParseError".
+ */
+export interface ParseError {
+  code: "unknown-dependency" | "self-dependency" | "dependency-cycle" | "task-outside-phase" | "no-tasks";
+  task_id?: string | null;
+  message: string;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ExampleSummary".
+ */
+export interface ExampleSummary {
+  id: string;
+  title: string;
 }
