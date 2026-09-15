@@ -1,0 +1,20 @@
+# Line endings are pinned here rather than left to whatever the machine prefers.
+#
+# The bundled CSVs in backend/app/data/ are the reason this file exists.
+# docs/05-DATA-AND-PIPELINE.md requires them to be byte-reproducible, and a test
+# regenerates them and asserts the result matches the committed file exactly.
+# Git's Windows default, core.autocrlf=true, rewrites them to CRLF on checkout:
+# one extra byte per line, 12,848 of them in orders.csv. That fails the test on
+# every fresh clone on Windows while passing on the machine that generated the
+# files, because those were written by Python and never checked out again. It is
+# invisible until somebody else clones the repository.
+#
+# Everything else is LF for the same reason it is worth having one answer at
+# all: this repository was authored with LF, and a working tree that differs by
+# platform is a difference nobody chose.
+
+* text=auto eol=lf
+
+# Redundant under the rule above, and kept anyway so the constraint is written
+# down next to the thing it protects.
+backend/app/data/*.csv text eol=lf
