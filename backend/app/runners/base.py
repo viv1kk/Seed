@@ -37,7 +37,9 @@ from app.core.types import (
     Plan,
     SeedEvent,
     Task,
+    TaskFailed,
     TaskProgress,
+    TaskRetried,
 )
 from app.pipeline.kernel import WorkKernel
 
@@ -76,6 +78,10 @@ class Emitter:
     @property
     def at(self) -> int:
         return self._ctx.clock.elapsed_ms
+
+    @property
+    def run_id(self) -> str:
+        return self._ctx.run_id
 
     def say(self, message: str, level: LogLevel = "info") -> LogEmitted:
         """A line in the agent's own voice."""
@@ -140,4 +146,32 @@ class Emitter:
             seq=0,
             at=self.at,
             artifact=artifact,
+        )
+
+    def failed(self, reason: str, *, recoverable: bool) -> TaskFailed:
+        """A task going wrong in a way the runner saw coming and can describe.
+
+        Distinct from a runner raising, which the orchestrator reports as an
+        unrecoverable failure with the exception text. This one is for a failure
+        the agent has diagnosed and is about to do something about.
+        """
+        return TaskFailed(
+            run_id=self._ctx.run_id,
+            seq=0,
+            at=self.at,
+            task_id=self._task.id,
+            agent_id=self._agent_id,
+            reason=reason,
+            recoverable=recoverable,
+        )
+
+    def retried(self, attempt: int, strategy: str) -> TaskRetried:
+        return TaskRetried(
+            run_id=self._ctx.run_id,
+            seq=0,
+            at=self.at,
+            task_id=self._task.id,
+            agent_id=self._agent_id,
+            attempt=attempt,
+            strategy=strategy,
         )

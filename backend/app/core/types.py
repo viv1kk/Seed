@@ -120,6 +120,97 @@ class TaskMetrics(BaseModel):
     duration_ms: int
 
 
+class ArtifactBody(BaseModel):
+    """The contents of one artifact, fetched separately from the event stream.
+
+    Code arrives as Pygments HTML rather than as source, because the
+    highlighting is done server side and there is no client-side highlighter in
+    this project. ``text`` carries the raw source for anything that wants it,
+    such as a copy action, and documents use it directly.
+    """
+
+    id: str
+    kind: ArtifactKind
+    path: str
+    lang: str | None = None
+    text: str | None = None
+    html: str | None = None
+    lines: int | None = None
+    rows: int | None = None
+    columns: list[str] | None = None
+    preview: list[list[str]] | None = None
+
+
+# ---------------------------------------------------------------- analytics
+
+
+class Filters(BaseModel):
+    """The cross-filter, applied to the retained derived frame.
+
+    Sent by the dashboard to ``POST /api/runs/{id}/query`` and echoed back on
+    the bundle, so a response can be matched to the request that produced it
+    without the frontend tracking what it asked for.
+    """
+
+    date_from: str | None = None
+    date_to: str | None = None
+    category: str | None = None
+    region: str | None = None
+
+
+class Kpis(BaseModel):
+    net_revenue: float
+    order_count: int
+    average_order_value: float
+    margin_pct: float
+    return_rate: float
+
+
+class WeekPoint(BaseModel):
+    week: str  # the Monday of the week, as an ISO date
+    net_revenue: float
+    order_count: int
+
+
+class CategoryRow(BaseModel):
+    category: str
+    net_revenue: float
+    margin_pct: float
+
+
+class RegionRow(BaseModel):
+    region: str
+    net_revenue: float
+    share: float
+
+
+class ProductRow(BaseModel):
+    sku: str
+    product_name: str
+    net_revenue: float
+    units: int
+    margin_pct: float
+
+
+class AggBundle(BaseModel):
+    """Everything the dashboard draws, computed in one pass over one frame.
+
+    One bundle per query, rather than an endpoint per surface. Every figure on
+    screen then comes from the same filtered frame at the same moment, so the
+    category totals and the region totals cannot disagree with the headline
+    because one of them was computed a request later.
+    """
+
+    kpis: Kpis
+    revenue_over_time: list[WeekPoint]
+    revenue_by_category: list[CategoryRow]
+    revenue_by_region: list[RegionRow]
+    top_products: list[ProductRow]
+    rows: int  # rows the filters admitted, before the revenue statuses narrow it
+    computed_ms: int
+    filters: Filters
+
+
 class _Base(BaseModel):
     run_id: str
     seq: int
@@ -270,13 +361,18 @@ __all__ = [
     "AgentId",
     "AgentIdle",
     "AgentSpawned",
+    "AggBundle",
     "Artifact",
+    "ArtifactBody",
     "ArtifactChunk",
     "ArtifactCreated",
     "ArtifactKind",
     "ArtifactStreaming",
+    "CategoryRow",
     "Constraint",
     "ExampleSummary",
+    "Filters",
+    "Kpis",
     "LogEmitted",
     "LogLevel",
     "ParseError",
@@ -287,6 +383,8 @@ __all__ = [
     "Phase",
     "Plan",
     "PlanBuilt",
+    "ProductRow",
+    "RegionRow",
     "RunCompleted",
     "RunFailed",
     "RunStarted",
@@ -301,4 +399,5 @@ __all__ = [
     "TaskStarted",
     "TaskStatus",
     "TaskStep",
+    "WeekPoint",
 ]

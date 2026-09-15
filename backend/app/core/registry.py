@@ -4,8 +4,10 @@ A run's reproducible state is created in one place, ``create_run``, so that the
 bus, the clock, and the seeded generator for a run can never be assembled
 inconsistently.
 
-Scope note: the retained derived frame that the cross-filter query endpoint
-reads arrives in phase 3.
+The run keeps its kernel after it finishes. That is what lets the delivered
+dashboard go on cross-filtering: the derived frame is still in memory, and
+``POST /api/runs/{id}/query`` re-aggregates the same frame the run itself
+reported from. Nothing is persisted; a restart is a clean slate, by design.
 """
 
 import asyncio
@@ -16,7 +18,8 @@ from dataclasses import dataclass, field
 from app.core.clock import Clock
 from app.core.events import EventBus
 from app.core.rng import DEFAULT_SEED, Rng, make_rng
-from app.core.types import Plan
+from app.core.types import Artifact, Plan
+from app.pipeline.kernel import PolarsKernel
 
 
 @dataclass
@@ -29,6 +32,7 @@ class RunRecord:
     clock: Clock
     rng: Rng
     created_at: float
+    kernel: PolarsKernel
     task: asyncio.Task[None] | None = field(default=None)
 
 
@@ -79,6 +83,7 @@ class RunRegistry:
             clock=Clock(speed=speed),
             rng=make_rng(seed),
             created_at=time.time(),
+            kernel=PolarsKernel(),
         )
         self._runs[run_id] = record
         return record
@@ -95,6 +100,20 @@ class RunRegistry:
     def list_runs(self) -> list[RunRecord]:
         """Oldest first."""
         return sorted(self._runs.values(), key=lambda r: r.created_at)
+
+    def find_artifact(self, artifact_id: str) -> tuple[RunRecord, Artifact] | None:
+        """Locate an artifact by id, newest run first.
+
+        Artifact ids are keyed by plan and task rather than by run, so two runs
+        of the same document produce the same ids. Searching newest first means
+        a link opened during a run resolves against that run rather than against
+        a stale one still sitting in memory.
+        """
+        for record in reversed(self.list_runs()):
+            artifact = record.kernel.artifacts.get(artifact_id)
+            if artifact is not None:
+                return record, artifact
+        return None
 
     def remove(self, run_id: str) -> None:
         self._runs.pop(run_id, None)

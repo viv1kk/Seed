@@ -14,6 +14,15 @@
     "Artifact": {
       "$ref": "#/definitions/Artifact"
     },
+    "ArtifactBody": {
+      "$ref": "#/definitions/ArtifactBody"
+    },
+    "AggBundle": {
+      "$ref": "#/definitions/AggBundle"
+    },
+    "Filters": {
+      "$ref": "#/definitions/Filters"
+    },
     "ParseResult": {
       "$ref": "#/definitions/ParseResult"
     },
@@ -37,6 +46,9 @@
     "SeedEvent",
     "Plan",
     "Artifact",
+    "ArtifactBody",
+    "AggBundle",
+    "Filters",
     "ParseResult",
     "ExampleSummary",
     "AgentId",
@@ -1153,6 +1165,341 @@
         }
       ],
       "required": []
+    },
+    "ArtifactBody": {
+      "description": "The contents of one artifact, fetched separately from the event stream.\n\nCode arrives as Pygments HTML rather than as source, because the\nhighlighting is done server side and there is no client-side highlighter in\nthis project. ``text`` carries the raw source for anything that wants it,\nsuch as a copy action, and documents use it directly.",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "enum": [
+            "code",
+            "dataset",
+            "table",
+            "dashboard",
+            "doc"
+          ],
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "text": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "html": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "lines": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rows": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "columns": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "preview": {
+          "anyOf": [
+            {
+              "items": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "id",
+        "kind",
+        "path"
+      ],
+      "title": "ArtifactBody",
+      "type": "object"
+    },
+    "CategoryRow": {
+      "properties": {
+        "category": {
+          "type": "string"
+        },
+        "net_revenue": {
+          "type": "number"
+        },
+        "margin_pct": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "category",
+        "net_revenue",
+        "margin_pct"
+      ],
+      "title": "CategoryRow",
+      "type": "object"
+    },
+    "Filters": {
+      "description": "The cross-filter, applied to the retained derived frame.\n\nSent by the dashboard to ``POST /api/runs/{id}/query`` and echoed back on\nthe bundle, so a response can be matched to the request that produced it\nwithout the frontend tracking what it asked for.",
+      "properties": {
+        "date_from": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "date_to": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "category": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "region": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "title": "Filters",
+      "type": "object",
+      "required": []
+    },
+    "Kpis": {
+      "properties": {
+        "net_revenue": {
+          "type": "number"
+        },
+        "order_count": {
+          "type": "integer"
+        },
+        "average_order_value": {
+          "type": "number"
+        },
+        "margin_pct": {
+          "type": "number"
+        },
+        "return_rate": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "net_revenue",
+        "order_count",
+        "average_order_value",
+        "margin_pct",
+        "return_rate"
+      ],
+      "title": "Kpis",
+      "type": "object"
+    },
+    "ProductRow": {
+      "properties": {
+        "sku": {
+          "type": "string"
+        },
+        "product_name": {
+          "type": "string"
+        },
+        "net_revenue": {
+          "type": "number"
+        },
+        "units": {
+          "type": "integer"
+        },
+        "margin_pct": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "sku",
+        "product_name",
+        "net_revenue",
+        "units",
+        "margin_pct"
+      ],
+      "title": "ProductRow",
+      "type": "object"
+    },
+    "RegionRow": {
+      "properties": {
+        "region": {
+          "type": "string"
+        },
+        "net_revenue": {
+          "type": "number"
+        },
+        "share": {
+          "type": "number"
+        }
+      },
+      "required": [
+        "region",
+        "net_revenue",
+        "share"
+      ],
+      "title": "RegionRow",
+      "type": "object"
+    },
+    "WeekPoint": {
+      "properties": {
+        "week": {
+          "type": "string"
+        },
+        "net_revenue": {
+          "type": "number"
+        },
+        "order_count": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "week",
+        "net_revenue",
+        "order_count"
+      ],
+      "title": "WeekPoint",
+      "type": "object"
+    },
+    "AggBundle": {
+      "description": "Everything the dashboard draws, computed in one pass over one frame.\n\nOne bundle per query, rather than an endpoint per surface. Every figure on\nscreen then comes from the same filtered frame at the same moment, so the\ncategory totals and the region totals cannot disagree with the headline\nbecause one of them was computed a request later.",
+      "properties": {
+        "kpis": {
+          "$ref": "#/definitions/Kpis"
+        },
+        "revenue_over_time": {
+          "items": {
+            "$ref": "#/definitions/WeekPoint"
+          },
+          "type": "array"
+        },
+        "revenue_by_category": {
+          "items": {
+            "$ref": "#/definitions/CategoryRow"
+          },
+          "type": "array"
+        },
+        "revenue_by_region": {
+          "items": {
+            "$ref": "#/definitions/RegionRow"
+          },
+          "type": "array"
+        },
+        "top_products": {
+          "items": {
+            "$ref": "#/definitions/ProductRow"
+          },
+          "type": "array"
+        },
+        "rows": {
+          "type": "integer"
+        },
+        "computed_ms": {
+          "type": "integer"
+        },
+        "filters": {
+          "$ref": "#/definitions/Filters"
+        }
+      },
+      "required": [
+        "kpis",
+        "revenue_over_time",
+        "revenue_by_category",
+        "revenue_by_region",
+        "top_products",
+        "rows",
+        "computed_ms",
+        "filters"
+      ],
+      "title": "AggBundle",
+      "type": "object"
     },
     "ParseError": {
       "properties": {

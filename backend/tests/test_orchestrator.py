@@ -18,7 +18,6 @@ from app.core.types import (
 )
 from app.orchestrator.orchestrator import MAX_PARALLEL, Orchestrator, default_runner_for
 from app.parser import build_plan
-from app.pipeline.stub_kernel import StubKernel
 from app.runners.base import AgentContext, AgentRunner
 
 # Fast enough to keep the suite quick, slow enough that two concurrent runners
@@ -134,7 +133,7 @@ async def run_plan(
         bus=record.bus,
         clock=record.clock,
         rng=record.rng,
-        kernel=StubKernel(),
+        kernel=record.kernel,
         runner_for=default_runner_for,
         seed=record.seed,
     )
@@ -475,7 +474,7 @@ async def test_a_runner_that_raises_fails_the_run_and_skips_what_waited() -> Non
         bus=record.bus,
         clock=record.clock,
         rng=record.rng,
-        kernel=StubKernel(),
+        kernel=record.kernel,
         runner_for=Exploding,
         seed=1,
     )
@@ -536,7 +535,7 @@ async def test_cancelling_a_run_propagates_and_leaves_no_task_behind() -> None:
         bus=record.bus,
         clock=record.clock,
         rng=record.rng,
-        kernel=StubKernel(),
+        kernel=record.kernel,
         runner_for=default_runner_for,
         seed=1337,
     )
@@ -567,7 +566,7 @@ async def test_pause_holds_the_run_and_resume_releases_it() -> None:
         bus=record.bus,
         clock=record.clock,
         rng=record.rng,
-        kernel=StubKernel(),
+        kernel=record.kernel,
         runner_for=default_runner_for,
         seed=1337,
     )

@@ -99,9 +99,74 @@ class TaskMetrics(BaseModel):
     columns_added: list[str] | None = None
     null_rates: dict[str, float] | None = None
     duration_ms: int
+
+class ArtifactBody(BaseModel):
+    id: str
+    kind: ArtifactKind
+    path: str
+    lang: str | None = None
+    text: str | None = None      # raw source, for a copy action
+    html: str | None = None      # code: Pygments HTML, highlighted server side
+    lines: int | None = None
+    rows: int | None = None      # dataset
+    columns: list[str] | None = None
+    preview: list[list[str]] | None = None
 ```
 
 Artifact bodies are fetched separately from `GET /api/artifacts/{id}`, not carried on the event. A 400-line source file on an event would bloat the stream and stall the log.
+
+## Analytics models
+
+Added in phase 3. These never appear on the event stream: `Filters` is the body of `POST /api/runs/{id}/query` and `AggBundle` is its response, which is the whole of what the dashboard draws. Both are roots in `scripts/export_schema.py`, because nothing in the event union references them and without an explicit root they would not reach the generated TypeScript.
+
+```python
+class Filters(BaseModel):
+    date_from: str | None = None     # ISO date, inclusive
+    date_to: str | None = None       # ISO date, inclusive
+    category: str | None = None
+    region: str | None = None
+
+class Kpis(BaseModel):
+    net_revenue: float
+    order_count: int
+    average_order_value: float
+    margin_pct: float
+    return_rate: float
+
+class WeekPoint(BaseModel):
+    week: str                        # the Monday of the week, as an ISO date
+    net_revenue: float
+    order_count: int
+
+class CategoryRow(BaseModel):
+    category: str
+    net_revenue: float
+    margin_pct: float
+
+class RegionRow(BaseModel):
+    region: str
+    net_revenue: float
+    share: float
+
+class ProductRow(BaseModel):
+    sku: str
+    product_name: str
+    net_revenue: float
+    units: int
+    margin_pct: float
+
+class AggBundle(BaseModel):
+    kpis: Kpis
+    revenue_over_time: list[WeekPoint]
+    revenue_by_category: list[CategoryRow]
+    revenue_by_region: list[RegionRow]
+    top_products: list[ProductRow]
+    rows: int                        # rows the filters admitted
+    computed_ms: int
+    filters: Filters                 # echoed, so a response identifies its request
+```
+
+One bundle per query rather than an endpoint per surface, so every figure on screen comes from the same filtered frame at the same moment and the cuts cannot disagree with the headline.
 
 ## Events
 

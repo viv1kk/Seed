@@ -8,6 +8,7 @@ every /api request underneath it.
 
 from fastapi import FastAPI
 
+from app.api.artifacts import router as artifacts_router
 from app.api.examples import router as examples_router
 from app.api.health import router as health_router
 from app.api.plans import router as plans_router
@@ -26,6 +27,7 @@ def create_app() -> FastAPI:
     app.include_router(examples_router)
     app.include_router(plans_router)
     app.include_router(runs_router)
+    app.include_router(artifacts_router)
 
     # Routers go above this line.
     #

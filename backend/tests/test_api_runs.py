@@ -235,10 +235,25 @@ def test_the_demo_requirement_runs_end_to_end(live_url: str) -> None:
 
     assert events[-1]["type"] == "run.completed"
     assert len([e for e in events if e["type"] == "task.completed"]) == 7
-    assert len(events[-1]["artifact_ids"]) == 7
-    # Three of the seven tasks carry a fenced code block, so three artifacts are
-    # streamed rather than simply announced.
-    assert len([e for e in events if e["type"] == "artifact.streaming"]) == 3
+    # The twelve artifacts listed in docs/05-DATA-AND-PIPELINE.md.
+    assert len(events[-1]["artifact_ids"]) == 12
+    # Code and documents stream in chunks; datasets and the finished dashboard
+    # are announced whole, because there is no writing to watch.
+    streamed = [e for e in events if e["type"] == "artifact.streaming"]
+    assert len(streamed) == 8
+
+    # The failure beat. Exactly one task fails recoverably and is retried once,
+    # and the run still completes, which is the shape the whole demo turns on.
+    failures = [e for e in events if e["type"] == "task.failed"]
+    retries = [e for e in events if e["type"] == "task.retried"]
+    assert [(e["task_id"], e["recoverable"]) for e in failures] == [("2.1", True)]
+    assert [(e["task_id"], e["attempt"]) for e in retries] == [("2.1", 2)]
+
+    # And the numbers on screen came from the file. 12,847 rows read, 771 of
+    # them carrying the second timestamp format.
+    probe = [e for e in events if e["type"] == "log.emitted" and "probe:" in e["message"]]
+    assert len(probe) == 1
+    assert "771 of 12,847" in probe[0]["message"]
 
 
 def test_two_runs_at_one_seed_produce_identical_streams(live_url: str) -> None:

@@ -10,13 +10,15 @@
  */
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { controlRun, createPlan, createRun, fetchExamples } from "../api/client.ts";
+import { controlRun, createPlan, createRun, fetchExamples, queryRun } from "../api/client.ts";
 import { subscribeToRun, type StreamHandle } from "../api/stream.ts";
 import { forgetRun, recallRun, rememberRun } from "../state/session.ts";
 import { seedStore } from "../state/store.ts";
-import type { ExampleSummary, ParseError, Plan } from "../types/events.ts";
+import type { AggBundle, ExampleSummary, Filters, ParseError, Plan } from "../types/events.ts";
+import { ArtifactPanel } from "./ArtifactPanel.tsx";
+import { RevenueDashboard } from "./dashboard/RevenueDashboard.tsx";
 import { PlanView } from "./PlanView.tsx";
-import { AgentRail, ArtifactList, LogStream, PlanProgress } from "./RunView.tsx";
+import { AgentRail, LogStream, PlanProgress } from "./RunView.tsx";
 import { useSeedStore } from "./useSeedStore.ts";
 
 const SPEEDS = [1, 2, 5] as const;
@@ -31,6 +33,8 @@ export function App() {
   const [paused, setPaused] = useState(false);
   const [speed, setSpeed] = useState<number>(1);
   const [rejoined, setRejoined] = useState(false);
+  const [bundle, setBundle] = useState<AggBundle | null>(null);
+  const [querying, setQuerying] = useState(false);
 
   const run = useSeedStore((state) => state.run);
   const stream = useRef<StreamHandle | null>(null);
@@ -79,12 +83,37 @@ export function App() {
 
   useEffect(() => () => stream.current?.close(), []);
 
+  /**
+   * Ask for the figures once the run has produced them.
+   *
+   * The unfiltered bundle comes from the same endpoint every cross-filter uses,
+   * so the delivered dashboard and a filtered one are the same code path on
+   * both sides. `run.completed` is the backend's word, not a guess made here.
+   */
+  const query = useCallback(
+    (filters: Filters) => {
+      if (runId === null) return;
+      setQuerying(true);
+      queryRun(runId, filters)
+        .then(setBundle)
+        .catch((error: unknown) => setFailure(String(error)))
+        .finally(() => setQuerying(false));
+    },
+    [runId],
+  );
+
+  useEffect(() => {
+    if (runId === null || !run.completed) return;
+    query({});
+  }, [runId, run.completed, query]);
+
   const buildPlan = useCallback((id: string) => {
     stream.current?.close();
     stream.current = null;
     forgetRun();
     seedStore.getState().reset();
     setExampleId(id);
+    setBundle(null);
     setRunId(null);
     setRejoined(false);
     setPaused(false);
@@ -107,6 +136,7 @@ export function App() {
     seedStore.getState().reset();
     setFailure(null);
     setRejoined(false);
+    setBundle(null);
 
     createRun(plan.id, speed)
       .then(({ run_id }) => {
@@ -134,6 +164,7 @@ export function App() {
     setRunId(null);
     setRejoined(false);
     setPaused(false);
+    setBundle(null);
   }, [runId]);
 
   const changeSpeed = useCallback(
@@ -224,7 +255,10 @@ export function App() {
             <>
               <PlanProgress plan={plan} run={run} />
               <AgentRail run={run} />
-              <ArtifactList run={run} />
+              {bundle !== null && (
+                <RevenueDashboard bundle={bundle} pending={querying} onFilter={query} />
+              )}
+              <ArtifactPanel run={run} />
               <section>
                 <h2>Log</h2>
                 <LogStream logs={run.logs} />

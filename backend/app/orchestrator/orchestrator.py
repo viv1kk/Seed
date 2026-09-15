@@ -197,7 +197,7 @@ class Orchestrator:
                     at=ctx.clock.elapsed_ms,
                     task_id=task.id,
                     agent_id=task.agent_id,
-                    metrics=TaskMetrics(duration_ms=ctx.clock.elapsed_ms - started_ms),
+                    metrics=self._metrics(task, ctx.clock.elapsed_ms - started_ms),
                 )
             )
         except asyncio.CancelledError:
@@ -214,6 +214,20 @@ class Orchestrator:
                         task_id=task.id, error=error, ended_ms=ctx.clock.elapsed_ms
                     )
                 )
+
+    def _metrics(self, task: Task, duration_ms: int) -> TaskMetrics:
+        """Row counts from the kernel, duration from the clock.
+
+        The runner is the only thing that knows which kernel calls a task made,
+        so it files the counts as it goes and the orchestrator picks them up
+        here. The duration is the orchestrator's: it owns the clock hand this
+        task ran on. Contract rule 8 holds either way, since nothing on this
+        event was written by hand.
+        """
+        recorded = self._kernel.metrics_for(task.id)
+        if recorded is None:
+            return TaskMetrics(duration_ms=duration_ms)
+        return recorded.model_copy(update={"duration_ms": duration_ms})
 
     async def _runner_finished(self, message: _RunnerDone) -> bool:
         """Retire a finished runner. Returns True if the run is over."""

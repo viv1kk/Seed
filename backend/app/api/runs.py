@@ -1,8 +1,15 @@
-"""Start a run, watch it, and control it.
+"""Start a run, watch it, control it, and query what it produced.
 
-Three endpoints. The interesting one is the stream: it replays the run from
-``seq=0`` before following live events, so a refresh mid-run recovers the whole
-run rather than joining late. Someone will refresh during the demo.
+The stream replays from ``seq=0`` before following live events, so a refresh
+mid-run recovers the whole run rather than joining late. Someone will refresh
+during the demo.
+
+The query endpoint is the one that changes what the dashboard is. The run's
+derived frame stays in the registry after the last agent goes idle, so brushing
+a date range or clicking a category re-runs the same five aggregations in Polars
+over the same frame and answers in single-digit milliseconds. The dashboard is
+therefore a live surface over the pipeline rather than a picture of one, and a
+canned screenshot cannot do it.
 """
 
 import asyncio
@@ -16,8 +23,9 @@ from sse_starlette.sse import EventSourceResponse
 from app.api.deps import Registry
 from app.core.registry import RunRecord, RunRegistry
 from app.core.rng import DEFAULT_SEED
+from app.core.types import AggBundle, Filters
 from app.orchestrator.orchestrator import Orchestrator, default_runner_for
-from app.pipeline.stub_kernel import StubKernel
+from app.pipeline.aggregate import aggregate
 
 router = APIRouter(prefix="/api", tags=["runs"])
 
@@ -86,7 +94,7 @@ async def create_run(request: RunRequest, registry: Registry) -> RunCreated:
         bus=record.bus,
         clock=record.clock,
         rng=record.rng,
-        kernel=StubKernel(),
+        kernel=record.kernel,
         runner_for=default_runner_for,
         seed=record.seed,
     )
@@ -140,3 +148,23 @@ async def control_run(
         paused=clock.is_paused,
         cancelled=clock.is_cancelled,
     )
+
+
+@router.post("/runs/{run_id}/query")
+async def query_run(run_id: str, filters: Filters, registry: Registry) -> AggBundle:
+    """Re-aggregate the run's derived frame under a cross-filter.
+
+    Answers 409 while the frame does not exist yet, which is any point before
+    the analytics task has derived it. That is a real state rather than an
+    error: the dashboard only asks once the run has completed, and a client that
+    asks early should be told to wait rather than handed an empty bundle it
+    cannot distinguish from a filter that matched nothing.
+    """
+    record = _require(registry, run_id)
+    frame = record.kernel.derived
+    if frame is None:
+        raise HTTPException(
+            status_code=409,
+            detail="This run has not produced an analytical table yet.",
+        )
+    return aggregate(frame, filters)

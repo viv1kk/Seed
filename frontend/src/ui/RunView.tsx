@@ -5,6 +5,9 @@
  * task and the log is a div, which is enough to see that statuses move in the
  * right order, that two agents work at once where the graph allows, and that
  * lines arrive in order. The plan room is phase 4.
+ *
+ * Artifacts moved to ArtifactPanel.tsx in phase 3, when they gained bodies
+ * worth opening.
  */
 
 import type { AgentId, Plan } from "../types/events.ts";
@@ -77,35 +80,6 @@ export function AgentRail({ run }: { run: RunState }) {
           </li>
         ))}
       </ul>
-    </section>
-  );
-}
-
-export function ArtifactList({ run }: { run: RunState }) {
-  const streams = Object.values(run.streaming);
-  return (
-    <section>
-      <h2>Artifacts</h2>
-      {run.artifacts.length === 0 && streams.length === 0 && (
-        <p>Files appear here as agents produce them.</p>
-      )}
-      <ul>
-        {run.artifacts.map((artifact) => (
-          <li key={artifact.id}>
-            {artifact.path} ({artifact.kind}, {artifact.bytes} bytes)
-          </li>
-        ))}
-      </ul>
-      {streams
-        .filter((stream) => !stream.complete)
-        .map((stream) => (
-          <div key={stream.artifactId}>
-            <p>
-              Writing {stream.path} ({stream.text.length} characters so far)
-            </p>
-            <pre>{stream.text}</pre>
-          </div>
-        ))}
     </section>
   );
 }

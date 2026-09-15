@@ -29,15 +29,6 @@ class CleanStrategy(BaseModel):
     fill_nulls: dict[str, float] = {}
 
 
-class Filters(BaseModel):
-    """Cross-filter applied to the retained derived frame. Phase 3."""
-
-    date_from: str | None = None
-    date_to: str | None = None
-    category: str | None = None
-    region: str | None = None
-
-
 class LoadResult(BaseModel):
     name: str
     rows: int
@@ -85,3 +76,56 @@ class DeriveResult(BaseModel):
     rows: int
     columns_added: list[str]
     derive_ms: int
+
+
+class ConflictResult(BaseModel):
+    """What a join's duplicated column disagreed about, and which side won."""
+
+    column: str
+    resolved_to: str
+    conflicts: int
+    rows: int
+
+
+class FormatProbe(BaseModel):
+    """What a failed strict parse was actually looking at.
+
+    Built after the exception has been raised, from the real frame. Polars
+    reports its own failure against the chunk it gave up on ("9 out of 100
+    values"), which is true of that chunk and not of the file, so the count
+    worth telling anyone is established here, over every row.
+
+    ``samples`` are values lifted out of the failing rows themselves. They are
+    what a sceptic greps the source file for, so they have to be real.
+    """
+
+    column: str
+    spec: str
+    total: int
+    parsed: int
+    unparseable: int
+    samples: list[str] = []
+    # Candidate formats that read the values the strict parse could not, and how
+    # many each one reads. Empty means nothing available would have helped.
+    alternates: dict[str, int] = {}
+    # Failing values whose first component is greater than 12. A day cannot be
+    # read as a month, so one of these rules out month-first ordering outright.
+    day_first_evidence: int = 0
+
+    @property
+    def failure_rate(self) -> float:
+        return self.unparseable / self.total if self.total else 0.0
+
+
+class DatasetPreview(BaseModel):
+    """A handful of real rows off the front of a frame, for a dataset artifact.
+
+    ``bytes`` is the whole frame's footprint as Polars measures it, not the
+    preview's. A dataset artifact reporting the size of its own twenty-row
+    sample would be describing the wrong thing entirely.
+    """
+
+    rows: int
+    columns: list[str]
+    bytes: int
+    sample: list[list[str]]

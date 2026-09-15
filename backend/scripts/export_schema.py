@@ -17,8 +17,10 @@ Two details are load-bearing:
   Pydantic speaks 2020-12; json-schema-to-typescript is happiest on draft-07.
   Emitting both keeps one generator input valid for either reading.
 
-Phase note: ``AggBundle`` joins ``ROOTS`` in phase 3, when the aggregations it
-describes exist. Adding it here is the whole change on this side.
+``AggBundle`` and ``Filters`` are roots because the dashboard is typed against
+them: the query endpoint takes one and returns the other, and neither appears
+anywhere in the event union, so without an explicit root they would not reach
+the generated TypeScript at all.
 """
 
 import argparse
@@ -31,9 +33,12 @@ from pydantic import TypeAdapter
 
 from app.core.types import (
     AgentId,
+    AggBundle,
     Artifact,
+    ArtifactBody,
     ArtifactKind,
     ExampleSummary,
+    Filters,
     LogLevel,
     ParseResult,
     Plan,
@@ -56,6 +61,9 @@ ROOTS: Final[dict[str, Any]] = {
     "SeedEvent": SeedEvent,
     "Plan": Plan,
     "Artifact": Artifact,
+    "ArtifactBody": ArtifactBody,
+    "AggBundle": AggBundle,
+    "Filters": Filters,
     "ParseResult": ParseResult,
     "ExampleSummary": ExampleSummary,
     "AgentId": AgentId,

@@ -61,6 +61,9 @@ export interface SeedContract {
   SeedEvent: SeedEvent;
   Plan: Plan;
   Artifact: Artifact;
+  ArtifactBody: ArtifactBody;
+  AggBundle: AggBundle;
+  Filters: Filters;
   ParseResult: ParseResult;
   ExampleSummary: ExampleSummary;
   AgentId: AgentId;
@@ -374,6 +377,115 @@ export interface RunFailed {
   at: number;
   type: "run.failed";
   error: string;
+}
+/**
+ * The contents of one artifact, fetched separately from the event stream.
+ *
+ * Code arrives as Pygments HTML rather than as source, because the
+ * highlighting is done server side and there is no client-side highlighter in
+ * this project. ``text`` carries the raw source for anything that wants it,
+ * such as a copy action, and documents use it directly.
+ *
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ArtifactBody".
+ */
+export interface ArtifactBody {
+  id: string;
+  kind: "code" | "dataset" | "table" | "dashboard" | "doc";
+  path: string;
+  lang?: string | null;
+  text?: string | null;
+  html?: string | null;
+  lines?: number | null;
+  rows?: number | null;
+  columns?: string[] | null;
+  preview?: string[][] | null;
+}
+/**
+ * Everything the dashboard draws, computed in one pass over one frame.
+ *
+ * One bundle per query, rather than an endpoint per surface. Every figure on
+ * screen then comes from the same filtered frame at the same moment, so the
+ * category totals and the region totals cannot disagree with the headline
+ * because one of them was computed a request later.
+ *
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "AggBundle".
+ */
+export interface AggBundle {
+  kpis: Kpis;
+  revenue_over_time: WeekPoint[];
+  revenue_by_category: CategoryRow[];
+  revenue_by_region: RegionRow[];
+  top_products: ProductRow[];
+  rows: number;
+  computed_ms: number;
+  filters: Filters;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "Kpis".
+ */
+export interface Kpis {
+  net_revenue: number;
+  order_count: number;
+  average_order_value: number;
+  margin_pct: number;
+  return_rate: number;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "WeekPoint".
+ */
+export interface WeekPoint {
+  week: string;
+  net_revenue: number;
+  order_count: number;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "CategoryRow".
+ */
+export interface CategoryRow {
+  category: string;
+  net_revenue: number;
+  margin_pct: number;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "RegionRow".
+ */
+export interface RegionRow {
+  region: string;
+  net_revenue: number;
+  share: number;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ProductRow".
+ */
+export interface ProductRow {
+  sku: string;
+  product_name: string;
+  net_revenue: number;
+  units: number;
+  margin_pct: number;
+}
+/**
+ * The cross-filter, applied to the retained derived frame.
+ *
+ * Sent by the dashboard to ``POST /api/runs/{id}/query`` and echoed back on
+ * the bundle, so a response can be matched to the request that produced it
+ * without the frontend tracking what it asked for.
+ *
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "Filters".
+ */
+export interface Filters {
+  date_from?: string | null;
+  date_to?: string | null;
+  category?: string | null;
+  region?: string | null;
 }
 /**
  * This interface was referenced by `SeedContract`'s JSON-Schema

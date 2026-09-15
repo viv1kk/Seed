@@ -1,12 +1,12 @@
 /**
  * Fetch wrappers for the API.
  *
- * Four endpoints and no data-fetching library, per CLAUDE.md. Paths are
+ * A handful of endpoints and no data-fetching library, per CLAUDE.md. Paths are
  * relative: in development Vite proxies /api to port 8000, and in the built
  * demo uvicorn serves the API and this bundle from one origin.
  */
 
-import type { ExampleSummary, ParseResult } from "../types/events.ts";
+import type { AggBundle, ArtifactBody, ExampleSummary, Filters, ParseResult } from "../types/events.ts";
 
 export type ControlAction = "pause" | "resume" | "cancel" | "speed";
 
@@ -79,4 +79,33 @@ export async function controlRun(
   });
   if (!response.ok) throw new Error(`control returned ${response.status}`);
   return (await response.json()) as RunControlState;
+}
+
+/**
+ * Fetch one artifact's body.
+ *
+ * Bodies are deliberately absent from the event stream: `artifact.created`
+ * carries metadata only, so a large source file never travels through the log.
+ * Code comes back as Pygments HTML, highlighted on the server.
+ */
+export async function fetchArtifact(artifactId: string): Promise<ArtifactBody> {
+  return getJson<ArtifactBody>(`/api/artifacts/${artifactId}`);
+}
+
+/**
+ * Cross-filter the delivered dashboard.
+ *
+ * This is the endpoint that makes the dashboard a live surface rather than a
+ * picture. The backend re-runs the five aggregations in Polars over the run's
+ * retained frame and returns a fresh bundle. Nothing is filtered here: passing
+ * an empty object asks for the unfiltered figures.
+ */
+export async function queryRun(runId: string, filters: Filters): Promise<AggBundle> {
+  const response = await fetch(`/api/runs/${runId}/query`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(filters),
+  });
+  if (!response.ok) throw new Error(`query returned ${response.status}`);
+  return (await response.json()) as AggBundle;
 }
