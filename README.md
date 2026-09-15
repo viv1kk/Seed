@@ -1,6 +1,24 @@
-# Seed: specification set
+# Seed
 
-Everything Claude Code needs to build the Seed environment end to end. Python backend, React renderer, served as one process on localhost.
+Hand Seed a requirements document written in Markdown. It decomposes the document
+into a task graph and fulfils it with a team of agents, live: an interactive plan
+graph, the agents working, a streaming log, the files they produce, and a
+cross-filterable dashboard computed from real data at the end.
+
+**To run it: [SETUP.md](SETUP.md).** Two commands from a clean clone.
+
+Agent reasoning is scripted in this build. The engineering underneath is not: the
+parsing, orchestration, ETL, transforms and aggregations are real, they run at
+execution time over a real bundled dataset, and every figure on the dashboard is
+computed rather than stored. `docs/01-PRD.md` sets out exactly which half is
+which.
+
+---
+
+## The specification set
+
+Everything Claude Code needed to build this end to end. Python backend, React
+renderer, served as one process on localhost.
 
 ```
 CLAUDE.md                                 loads automatically at launch
@@ -16,13 +34,15 @@ docs/07-IMPLEMENTATION-PLAN.md            five phases with acceptance gates
 examples/requirements/retail-analytics.md the demo input and the parser reference
 ```
 
-Drop this in at the repo root before any code exists, then `git init`, then `claude`.
+These were dropped in at the repo root before any code existed, then `git init`, then `claude`. They are kept current: a change to the contract or the pipeline updates its doc in the same commit.
 
 **Do not turn the docs table in `CLAUDE.md` into `@docs/...` imports.** Imports load at launch, so seven specs would fill the context window before you type. Plain paths mean Claude Code reads only what the current phase needs. Also grep for stray un-backticked `@` in prose, which get treated as imports too.
 
 After the first launch, run `/context` and confirm `CLAUDE.md` appears under Memory files. That is the only non-guess that it loaded.
 
-## Driving the build
+## How it was built
+
+Kept for the record, and because the same method drives the phases still to come.
 
 One phase per session. Claude Code degrades when handed the whole week at once, and the gates exist to catch drift before it compounds.
 
