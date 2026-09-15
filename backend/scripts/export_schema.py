@@ -17,10 +17,11 @@ Two details are load-bearing:
   Pydantic speaks 2020-12; json-schema-to-typescript is happiest on draft-07.
   Emitting both keeps one generator input valid for either reading.
 
-``AggBundle`` and ``Filters`` are roots because the dashboard is typed against
-them: the query endpoint takes one and returns the other, and neither appears
-anywhere in the event union, so without an explicit root they would not reach
-the generated TypeScript at all.
+``QueryResult`` and ``Filters`` are roots because the dashboard is typed
+against them: the query endpoint takes one and answers the other, and neither
+appears anywhere in the event union, so without an explicit root they would not
+reach the generated TypeScript at all. ``AggBundle`` comes in under
+``QueryResult`` but is named too, because every dashboard component takes one.
 """
 
 import argparse
@@ -42,6 +43,7 @@ from app.core.types import (
     LogLevel,
     ParseResult,
     Plan,
+    QueryResult,
     SeedEvent,
     TaskStatus,
 )
@@ -63,6 +65,7 @@ ROOTS: Final[dict[str, Any]] = {
     "Artifact": Artifact,
     "ArtifactBody": ArtifactBody,
     "AggBundle": AggBundle,
+    "QueryResult": QueryResult,
     "Filters": Filters,
     "ParseResult": ParseResult,
     "ExampleSummary": ExampleSummary,

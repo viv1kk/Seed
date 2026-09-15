@@ -6,7 +6,13 @@
  * demo uvicorn serves the API and this bundle from one origin.
  */
 
-import type { AggBundle, ArtifactBody, ExampleSummary, Filters, ParseResult } from "../types/events.ts";
+import type {
+  ArtifactBody,
+  ExampleSummary,
+  Filters,
+  ParseResult,
+  QueryResult,
+} from "../types/events.ts";
 
 export type ControlAction = "pause" | "resume" | "cancel" | "speed";
 
@@ -105,15 +111,20 @@ export async function fetchArtifact(artifactId: string): Promise<ArtifactBody> {
  *
  * This is the endpoint that makes the dashboard a live surface rather than a
  * picture. The backend re-runs the five aggregations in Polars over the run's
- * retained frame and returns a fresh bundle. Nothing is filtered here: passing
- * an empty object asks for the unfiltered figures.
+ * retained frame and answers with a fresh bundle. Nothing is filtered here:
+ * passing an empty object asks for the unfiltered figures.
+ *
+ * The answer is discriminated, like `ParseResult`. A run that produced no
+ * analytical table says so at 200 rather than failing, because a requirement
+ * document that describes no aggregate is an ordinary thing to write. Only a
+ * genuine transport or server fault throws.
  */
-export async function queryRun(runId: string, filters: Filters): Promise<AggBundle> {
+export async function queryRun(runId: string, filters: Filters): Promise<QueryResult> {
   const response = await fetch(`/api/runs/${runId}/query`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(filters),
   });
   if (!response.ok) throw new Error(`query returned ${response.status}`);
-  return (await response.json()) as AggBundle;
+  return (await response.json()) as QueryResult;
 }

@@ -90,7 +90,7 @@ export function Header({
             type="button"
             onClick={onPrimary}
             disabled={primaryDisabled}
-            className="t-secondary rounded-sm border border-signal px-3 py-1 font-medium text-signal hover:bg-signal/10 disabled:border-ink-600 disabled:text-chalk-dim disabled:hover:bg-transparent"
+            className="t-secondary rounded-sm border border-signal px-3 py-1 font-medium text-signal hover:bg-signal/10 disabled:border-ink-600 disabled:text-chalk-dim disabled:opacity-50 disabled:hover:bg-transparent"
           >
             {primaryLabel}
           </button>

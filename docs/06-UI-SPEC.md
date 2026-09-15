@@ -169,6 +169,18 @@ Everything else is small and functional:
 
 Exact strings. Sentence case, active voice, no em dashes.
 
+The intake surface carries the empty state, the bundled examples, and the
+box a person pastes or opens their own document into. FR1 in `01-PRD.md`
+is "pick a bundled requirement file or paste Markdown", and the examples
+exist to open the demo on something known rather than to be the only way
+in. Opening a local file reads it into the same box and sends the same
+`{markdown}` body; nothing is uploaded, so "arbitrary file upload" stays
+out of scope as the PRD says.
+
+Most documents somebody writes will not describe a revenue aggregate, so a
+completed run with no analytical table is an ordinary outcome and says so
+rather than reading as a failure.
+
 | Location | String |
 |---|---|
 | Empty state heading | `Load a requirement to begin` |

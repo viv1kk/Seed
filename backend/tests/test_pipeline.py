@@ -22,6 +22,8 @@ dataset is the demo input, its defect volumes are already asserted in
 answer the question anyone actually has about this code.
 """
 
+from typing import Any
+
 import polars as pl
 import pytest
 from fastapi.testclient import TestClient
@@ -354,6 +356,20 @@ class TestAggregate:
 class TestQueryEndpoint:
     """The cross-filter over HTTP, which is how the dashboard actually asks."""
 
+    @staticmethod
+    def _bundle(client: TestClient, run_id: str, filters: dict[str, str]) -> dict[str, Any]:
+        """Query, assert the run had a table, and hand back the bundle.
+
+        The endpoint answers a discriminated result rather than a bare bundle,
+        so the "no analytical table" case cannot be read as an empty one by
+        accident. These tests have driven the pipeline, so "ok" is the answer
+        they expect and anything else is the failure worth reporting.
+        """
+        body = client.post(f"/api/runs/{run_id}/query", json=filters).json()
+        assert body["status"] == "ok", body
+        bundle: dict[str, Any] = body["bundle"]
+        return bundle
+
     def test_a_date_range_returns_different_correct_figures(self) -> None:
         with TestClient(app) as client:
             plan = client.post("/api/plans", json={"example_id": "retail-analytics"}).json()
@@ -365,11 +381,10 @@ class TestQueryEndpoint:
             # what is under test here is the endpoint, not the orchestrator.
             _drive_pipeline(client, run_id)
 
-            whole = client.post(f"/api/runs/{run_id}/query", json={}).json()
-            quarter = client.post(
-                f"/api/runs/{run_id}/query",
-                json={"date_from": "2025-01-01", "date_to": "2025-03-31"},
-            ).json()
+            whole = self._bundle(client, run_id, {})
+            quarter = self._bundle(
+                client, run_id, {"date_from": "2025-01-01", "date_to": "2025-03-31"}
+            )
 
             assert quarter["kpis"]["net_revenue"] < whole["kpis"]["net_revenue"]
             assert quarter["rows"] < whole["rows"]
@@ -394,9 +409,9 @@ class TestQueryEndpoint:
             run_id = client.post("/api/runs", json={"plan_id": plan["plan"]["id"]}).json()["run_id"]
             _drive_pipeline(client, run_id)
 
-            whole = client.post(f"/api/runs/{run_id}/query", json={}).json()
+            whole = self._bundle(client, run_id, {})
             target = whole["revenue_by_region"][0]["region"]
-            filtered = client.post(f"/api/runs/{run_id}/query", json={"region": target}).json()
+            filtered = self._bundle(client, run_id, {"region": target})
 
             assert [row["region"] for row in filtered["revenue_by_region"]] == [
                 row["region"] for row in whole["revenue_by_region"]
@@ -406,14 +421,31 @@ class TestQueryEndpoint:
             )
             assert filtered["rows"] < whole["rows"]
 
-    def test_querying_before_the_table_exists_is_a_conflict(self) -> None:
+    def test_querying_before_the_table_exists_says_so_at_200(self) -> None:
+        """Not a fault, so not a failure status. See app/api/runs.py.
+
+        The same answer covers a run whose document never described an
+        aggregate at all, which is most documents somebody writes.
+        """
         with TestClient(app) as client:
             plan = client.post("/api/plans", json={"example_id": "retail-analytics"}).json()
             run_id = client.post("/api/runs", json={"plan_id": plan["plan"]["id"]}).json()["run_id"]
 
             response = client.post(f"/api/runs/{run_id}/query", json={})
 
-            assert response.status_code == 409
+            assert response.status_code == 200
+            assert response.json()["status"] == "no-analytical-table"
+
+    def test_a_query_with_a_table_answers_ok_and_carries_the_bundle(self) -> None:
+        with TestClient(app) as client:
+            plan = client.post("/api/plans", json={"example_id": "retail-analytics"}).json()
+            run_id = client.post("/api/runs", json={"plan_id": plan["plan"]["id"]}).json()["run_id"]
+            _drive_pipeline(client, run_id)
+
+            bundle = self._bundle(client, run_id, {})
+
+            assert bundle["kpis"]["net_revenue"] > 0
+            assert bundle["rows"] > 0
 
     def test_an_unknown_run_is_not_found(self) -> None:
         with TestClient(app) as client:

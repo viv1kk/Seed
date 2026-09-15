@@ -211,6 +211,31 @@ class AggBundle(BaseModel):
     filters: Filters
 
 
+class AggregateReady(BaseModel):
+    status: Literal["ok"] = "ok"
+    bundle: AggBundle
+
+
+class NoAnalyticalTable(BaseModel):
+    """The run has not produced a frame to aggregate, and may never.
+
+    Two different situations, deliberately one answer. A query that arrives
+    before the analytics task has derived the table is early; a run whose
+    document never described an aggregate at all will never have one. Neither is
+    a fault, and the dashboard does the same thing in both cases: it does not
+    draw.
+    """
+
+    status: Literal["no-analytical-table"] = "no-analytical-table"
+    message: str
+
+
+QueryResult = Annotated[
+    Union[AggregateReady, NoAnalyticalTable],  # noqa: UP007
+    Field(discriminator="status"),
+]
+
+
 class _Base(BaseModel):
     run_id: str
     seq: int

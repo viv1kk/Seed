@@ -23,7 +23,7 @@ from sse_starlette.sse import EventSourceResponse
 from app.api.deps import Registry
 from app.core.registry import RunRecord, RunRegistry
 from app.core.rng import DEFAULT_SEED
-from app.core.types import AggBundle, Filters
+from app.core.types import AggregateReady, Filters, NoAnalyticalTable, QueryResult
 from app.orchestrator.orchestrator import Orchestrator, default_runner_for
 from app.pipeline.aggregate import aggregate
 
@@ -151,20 +151,25 @@ async def control_run(
 
 
 @router.post("/runs/{run_id}/query")
-async def query_run(run_id: str, filters: Filters, registry: Registry) -> AggBundle:
+async def query_run(run_id: str, filters: Filters, registry: Registry) -> QueryResult:
     """Re-aggregate the run's derived frame under a cross-filter.
 
-    Answers 409 while the frame does not exist yet, which is any point before
-    the analytics task has derived it. That is a real state rather than an
-    error: the dashboard only asks once the run has completed, and a client that
-    asks early should be told to wait rather than handed an empty bundle it
-    cannot distinguish from a filter that matched nothing.
+    Always 200, with a discriminated result, exactly as `POST /api/plans`
+    answers a rejected document. A run with no analytical table is a normal
+    outcome and not a server fault: a requirement document belongs to whoever
+    wrote it, and most documents do not describe a revenue aggregate. The run
+    still built what it was asked for.
+
+    The distinction that matters is kept either way. "No table" is a different
+    answer from an empty bundle, which is what a filter matching nothing
+    returns, and the dashboard must not confuse the two. It used to be a 409,
+    which said the same thing but made every browser watching the demo log a
+    console error on a path that is working correctly.
     """
     record = _require(registry, run_id)
     frame = record.kernel.derived
     if frame is None:
-        raise HTTPException(
-            status_code=409,
-            detail="This run has not produced an analytical table yet.",
+        return NoAnalyticalTable(
+            message="This run has not produced an analytical table."
         )
-    return aggregate(frame, filters)
+    return AggregateReady(bundle=aggregate(frame, filters))

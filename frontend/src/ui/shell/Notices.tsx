@@ -6,49 +6,12 @@
  * belongs to the person using this, and a broken `Depends on:` reference is an
  * ordinary thing to write. The errors say what went wrong and what to do next,
  * and the run is refused by there being no plan to start.
+ *
+ * The empty state moved to Intake.tsx, which owns the whole of requirement
+ * intake: the examples, the paste box, and opening a file.
  */
 
-import type { ExampleSummary, ParseError, ParseWarning } from "../../types/events.ts";
-
-export function EmptyState({
-  examples,
-  onPick,
-  loading,
-}: {
-  examples: readonly ExampleSummary[];
-  onPick: (exampleId: string) => void;
-  loading: boolean;
-}) {
-  return (
-    <div className="flex h-full flex-col items-center justify-center gap-5 px-8 text-center">
-      <div className="max-w-md">
-        <h2 className="t-run-title text-chalk">Load a requirement to begin</h2>
-        <p className="t-body pt-2 text-chalk-dim">
-          Seed reads a Markdown requirements file, plans the work, and builds it. Pick one of
-          the examples or paste your own.
-        </p>
-      </div>
-
-      {loading ? (
-        <p className="t-secondary text-chalk-dim">Loading examples.</p>
-      ) : (
-        <ul className="flex flex-wrap justify-center gap-2">
-          {examples.map((example) => (
-            <li key={example.id}>
-              <button
-                type="button"
-                onClick={() => onPick(example.id)}
-                className="t-body rounded-sm border border-ink-600 px-4 py-2 text-chalk hover:border-signal hover:text-signal"
-              >
-                {example.title}
-              </button>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-}
+import type { ParseError, ParseWarning } from "../../types/events.ts";
 
 export function ParseErrors({ errors }: { errors: readonly ParseError[] }) {
   if (errors.length === 0) return null;

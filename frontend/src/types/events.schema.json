@@ -20,6 +20,9 @@
     "AggBundle": {
       "$ref": "#/definitions/AggBundle"
     },
+    "QueryResult": {
+      "$ref": "#/definitions/QueryResult"
+    },
     "Filters": {
       "$ref": "#/definitions/Filters"
     },
@@ -48,6 +51,7 @@
     "Artifact",
     "ArtifactBody",
     "AggBundle",
+    "QueryResult",
     "Filters",
     "ParseResult",
     "ExampleSummary",
@@ -1500,6 +1504,61 @@
       ],
       "title": "AggBundle",
       "type": "object"
+    },
+    "AggregateReady": {
+      "properties": {
+        "status": {
+          "const": "ok",
+          "default": "ok",
+          "type": "string"
+        },
+        "bundle": {
+          "$ref": "#/definitions/AggBundle"
+        }
+      },
+      "required": [
+        "bundle",
+        "status"
+      ],
+      "title": "AggregateReady",
+      "type": "object"
+    },
+    "NoAnalyticalTable": {
+      "description": "The run has not produced a frame to aggregate, and may never.\n\nTwo different situations, deliberately one answer. A query that arrives\nbefore the analytics task has derived the table is early; a run whose\ndocument never described an aggregate at all will never have one. Neither is\na fault, and the dashboard does the same thing in both cases: it does not\ndraw.",
+      "properties": {
+        "status": {
+          "const": "no-analytical-table",
+          "default": "no-analytical-table",
+          "type": "string"
+        },
+        "message": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "message",
+        "status"
+      ],
+      "title": "NoAnalyticalTable",
+      "type": "object"
+    },
+    "QueryResult": {
+      "discriminator": {
+        "mapping": {
+          "no-analytical-table": "#/definitions/NoAnalyticalTable",
+          "ok": "#/definitions/AggregateReady"
+        },
+        "propertyName": "status"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/definitions/AggregateReady"
+        },
+        {
+          "$ref": "#/definitions/NoAnalyticalTable"
+        }
+      ],
+      "required": []
     },
     "ParseError": {
       "properties": {

@@ -30,6 +30,11 @@ export type SeedEvent =
   | RunFailed;
 /**
  * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "QueryResult".
+ */
+export type QueryResult = AggregateReady | NoAnalyticalTable;
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
  * via the `definition` "ParseResult".
  */
 export type ParseResult = ParseSucceeded | ParseFailed;
@@ -63,6 +68,7 @@ export interface SeedContract {
   Artifact: Artifact;
   ArtifactBody: ArtifactBody;
   AggBundle: AggBundle;
+  QueryResult: QueryResult;
   Filters: Filters;
   ParseResult: ParseResult;
   ExampleSummary: ExampleSummary;
@@ -486,6 +492,30 @@ export interface Filters {
   date_to?: string | null;
   category?: string | null;
   region?: string | null;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "AggregateReady".
+ */
+export interface AggregateReady {
+  status: "ok";
+  bundle: AggBundle;
+}
+/**
+ * The run has not produced a frame to aggregate, and may never.
+ *
+ * Two different situations, deliberately one answer. A query that arrives
+ * before the analytics task has derived the table is early; a run whose
+ * document never described an aggregate at all will never have one. Neither is
+ * a fault, and the dashboard does the same thing in both cases: it does not
+ * draw.
+ *
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "NoAnalyticalTable".
+ */
+export interface NoAnalyticalTable {
+  status: "no-analytical-table";
+  message: string;
 }
 /**
  * This interface was referenced by `SeedContract`'s JSON-Schema

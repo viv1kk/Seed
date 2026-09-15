@@ -86,7 +86,7 @@ Small on purpose.
 | `GET` | `/api/runs/{id}/stream` | SSE. Replays from `seq=0` so a reconnect loses nothing. |
 | `POST` | `/api/runs/{id}/control` | Body `{action: pause\|resume\|cancel\|speed, value?}` |
 | `GET` | `/api/artifacts/{id}` | Artifact body. Code artifacts return Pygments HTML. |
-| `POST` | `/api/runs/{id}/query` | Cross-filter. Body `{date_from?, date_to?, category?, region?}`. Re-runs the aggregations in Polars and returns a fresh `AggBundle`. |
+| `POST` | `/api/runs/{id}/query` | Cross-filter. Body `{date_from?, date_to?, category?, region?}`. Re-runs the aggregations in Polars and answers a `QueryResult`: a fresh `AggBundle`, or `no-analytical-table` for a run that derived none. Always 200. |
 
 That last endpoint matters more than it looks. It is what makes the delivered dashboard a live surface over the pipeline rather than a picture of one. See `05-DATA-AND-PIPELINE.md`.
 

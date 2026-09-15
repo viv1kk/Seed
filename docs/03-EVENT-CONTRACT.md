@@ -164,9 +164,37 @@ class AggBundle(BaseModel):
     rows: int                        # rows the filters admitted
     computed_ms: int
     filters: Filters                 # echoed, so a response identifies its request
+
+class AggregateReady(BaseModel):
+    status: Literal["ok"] = "ok"
+    bundle: AggBundle
+
+class NoAnalyticalTable(BaseModel):
+    status: Literal["no-analytical-table"] = "no-analytical-table"
+    message: str
+
+QueryResult = Annotated[
+    Union[AggregateReady, NoAnalyticalTable],
+    Field(discriminator="status"),
+]
 ```
 
 One bundle per query rather than an endpoint per surface, so every figure on screen comes from the same filtered frame at the same moment and the cuts cannot disagree with the headline.
+
+`POST /api/runs/{id}/query` answers `QueryResult`, always with HTTP 200, for the
+same reason `POST /api/plans` does: a run with no analytical table is a normal
+outcome rather than a server fault. Most requirement documents somebody writes
+describe no revenue aggregate at all, and the run still built what it was asked
+for. A failure status would make the browser log a console error on a path that
+is working correctly, and the PRD asks for a clean console through a full run.
+
+"No table" stays distinct from an empty bundle, which is what a filter matching
+nothing returns. The dashboard draws nothing in the first case and zeroes in the
+second, and it must not confuse them.
+
+`QueryResult` is a third tagged union, so its tag is marked required in the
+exported schema exactly as `SeedEvent`'s and `ParseResult`'s are. See the note
+under **Parse results**.
 
 ## Events
 

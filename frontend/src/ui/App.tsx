@@ -15,7 +15,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { controlRun, createPlan, createRun, fetchExamples, queryRun } from "../api/client.ts";
 import { subscribeToRun, type StreamHandle } from "../api/stream.ts";
-import { forgetRun, recallRun, rememberRun } from "../state/session.ts";
+import {
+  forgetRun,
+  planRequestFor,
+  recallRun,
+  rememberRun,
+  sourceName,
+  type Source,
+} from "../state/session.ts";
 import { seedStore } from "../state/store.ts";
 import { viewStore } from "../state/viewStore.ts";
 import type { AggBundle, ExampleSummary, Filters, ParseError, Plan } from "../types/events.ts";
@@ -28,9 +35,9 @@ import { Inspector } from "./graph/Inspector.tsx";
 import { PlanGraph } from "./graph/PlanGraph.tsx";
 import { BottomPanel } from "./shell/BottomPanel.tsx";
 import { Header, type Phase } from "./shell/Header.tsx";
+import { Intake } from "./shell/Intake.tsx";
 import {
   ConnectionNotice,
-  EmptyState,
   ParseErrors,
   PlanWarnings,
   RunOutcome,
@@ -59,7 +66,11 @@ export function useGlobalEscape(): void {
 
 export function App() {
   const [examples, setExamples] = useState<ExampleSummary[]>([]);
-  const [exampleId, setExampleId] = useState<string | null>(null);
+  /** The document this plan came from: a bundled example, or the person's own. */
+  const [source, setSource] = useState<Source | null>(null);
+  /** What is in the intake box. Held here so the header's button can build it. */
+  const [draft, setDraft] = useState("");
+  const [draftName, setDraftName] = useState("pasted requirement");
   const [plan, setPlan] = useState<Plan | null>(null);
   const [errors, setErrors] = useState<ParseError[]>([]);
   const [failure, setFailure] = useState<string | null>(null);
@@ -69,6 +80,8 @@ export function App() {
   const [seed, setSeed] = useState(DEFAULT_SEED);
   const [bundle, setBundle] = useState<AggBundle | null>(null);
   const [querying, setQuerying] = useState(false);
+  /** True once a completed run has told us it produced no analytical table. */
+  const [noDashboard, setNoDashboard] = useState(false);
   const [showingDashboard, setShowingDashboard] = useState(true);
 
   const completed = useSeedStore((state) => state.run.completed);
@@ -110,9 +123,15 @@ export function App() {
     const watched = recallRun();
     if (watched === null) return;
 
-    setExampleId(watched.exampleId);
+    setSource(watched.source);
     setSpeed(watched.speed);
-    createPlan({ example_id: watched.exampleId })
+    if (watched.source.kind === "markdown") {
+      setDraft(watched.source.text);
+      setDraftName(watched.source.name);
+    }
+    // Re-parsed rather than cached: the plan is the backend's to derive, and
+    // for a pasted document the text is the only thing this tab kept.
+    createPlan(planRequestFor(watched.source))
       .then((result) => {
         if (result.status !== "ok") {
           forgetRun();
@@ -133,7 +152,13 @@ export function App() {
       if (runId === null) return;
       setQuerying(true);
       queryRun(runId, filters)
-        .then(setBundle)
+        .then((result) => {
+          // A run whose document described no aggregate has no dashboard to
+          // deliver. That is an outcome, not a fault: the run still built what
+          // it was asked for, and the artifacts are in the tree.
+          setNoDashboard(result.status === "no-analytical-table");
+          setBundle(result.status === "ok" ? result.bundle : null);
+        })
         .catch(() => setFailure("The dashboard could not be refreshed. Try the filter again."))
         .finally(() => setQuerying(false));
     },
@@ -148,14 +173,23 @@ export function App() {
     query({});
   }, [runId, completed, query]);
 
-  const buildPlan = useCallback((id: string) => {
+  /**
+   * Parse a document into a plan.
+   *
+   * One path for a bundled example and for something the person pasted or
+   * opened, because the parser has one path for them too. A rejected document
+   * is a 200 carrying errors, not a failure: the run is refused by there being
+   * no plan, and the intake box keeps its text so the line can be fixed.
+   */
+  const buildPlan = useCallback((next: Source) => {
     stream.current?.close();
     stream.current = null;
     forgetRun();
     seedStore.getState().reset();
     viewStore.getState().reset();
-    setExampleId(id);
+    setSource(next);
     setBundle(null);
+    setNoDashboard(false);
     setRunId(null);
     setPaused(false);
     setPlan(null);
@@ -163,7 +197,7 @@ export function App() {
     setFailure(null);
     setShowingDashboard(true);
 
-    createPlan({ example_id: id })
+    createPlan(planRequestFor(next))
       .then((result) => {
         if (result.status === "ok") setPlan(result.plan);
         else setErrors(result.errors);
@@ -171,25 +205,50 @@ export function App() {
       .catch(() => setFailure("Cannot reach the backend. Start it on port 8000."));
   }, []);
 
+  const buildFromDraft = useCallback(() => {
+    if (draft.trim().length === 0) return;
+    buildPlan({ kind: "markdown", text: draft, name: draftName });
+  }, [draft, draftName, buildPlan]);
+
+  /** Back to intake, with whatever was in the box still in it. */
+  const newRequirement = useCallback(() => {
+    if (runId !== null) void controlRun(runId, "cancel").catch(() => undefined);
+    stream.current?.close();
+    stream.current = null;
+    forgetRun();
+    seedStore.getState().reset();
+    viewStore.getState().reset();
+    setSource(null);
+    setPlan(null);
+    setErrors([]);
+    setRunId(null);
+    setPaused(false);
+    setBundle(null);
+    setNoDashboard(false);
+    setFailure(null);
+    setShowingDashboard(true);
+  }, [runId]);
+
   const start = useCallback(() => {
-    if (plan === null || exampleId === null) return;
+    if (plan === null || source === null) return;
     // Replay always starts at seq 0, so the store has to start empty or every
     // line would be applied twice.
     seedStore.getState().reset();
     viewStore.getState().reset();
     setFailure(null);
     setBundle(null);
+    setNoDashboard(false);
     setShowingDashboard(true);
 
     createRun(plan.id, speed, seed)
       .then(({ run_id }) => {
         setRunId(run_id);
         setPaused(false);
-        rememberRun({ runId: run_id, exampleId, speed });
+        rememberRun({ runId: run_id, source, speed });
         watch(run_id);
       })
       .catch(() => setFailure("The run could not be started. Check the backend and try again."));
-  }, [plan, exampleId, speed, seed, watch]);
+  }, [plan, source, speed, seed, watch]);
 
   const togglePause = useCallback(() => {
     if (runId === null) return;
@@ -208,6 +267,7 @@ export function App() {
     setRunId(null);
     setPaused(false);
     setBundle(null);
+    setNoDashboard(false);
     setFailure(null);
     setShowingDashboard(true);
   }, [runId]);
@@ -245,21 +305,29 @@ export function App() {
           onSpeedChange={changeSpeed}
           phase="idle"
           primaryLabel="Build the plan"
-          onPrimary={() => {
-            const first = examples[0];
-            if (first !== undefined) buildPlan(first.id);
-          }}
-          primaryDisabled={examples.length === 0}
+          onPrimary={buildFromDraft}
+          primaryDisabled={draft.trim().length === 0}
           onTogglePause={togglePause}
           onReset={reset}
         />
         <ConnectionNotice message={failure} />
         <ParseErrors errors={errors} />
-        <main className="min-h-0 flex-1">
-          <EmptyState
+        <main className="min-h-0 flex-1 overflow-y-auto">
+          <Intake
             examples={examples}
-            onPick={buildPlan}
-            loading={examples.length === 0 && failure === null}
+            loadingExamples={examples.length === 0 && failure === null}
+            draft={draft}
+            onDraftChange={(text, name) => {
+              setDraft(text);
+              if (name !== undefined) setDraftName(name);
+            }}
+            onPickExample={(id) => buildPlan({ kind: "example", id })}
+            onBuild={buildFromDraft}
+            notice={
+              errors.length > 0
+                ? "Fix the lines above and build the plan again."
+                : null
+            }
           />
         </main>
       </div>
@@ -269,7 +337,7 @@ export function App() {
   return (
     <div className="relative flex h-full flex-col">
       <Header
-        requirementName={exampleId === null ? null : `${exampleId}.md`}
+        requirementName={source === null ? null : sourceName(source)}
         seed={seed}
         onSeedChange={setSeed}
         speed={speed}
@@ -289,6 +357,11 @@ export function App() {
               rows={bundle?.rows ?? null}
               error={runError}
             />
+            {noDashboard && (
+              <span className="t-secondary text-chalk-dim">
+                This requirement produced no analytical table, so there is no dashboard.
+              </span>
+            )}
             {completed && bundle !== null && (
               <button
                 type="button"
@@ -298,6 +371,13 @@ export function App() {
                 {showingDashboard ? "Show the run" : "Show the dashboard"}
               </button>
             )}
+            <button
+              type="button"
+              onClick={newRequirement}
+              className="t-secondary rounded-sm border border-ink-600 px-2.5 py-0.5 text-chalk-dim hover:border-chalk-dim hover:text-chalk"
+            >
+              Load another requirement
+            </button>
           </div>
         }
       />
