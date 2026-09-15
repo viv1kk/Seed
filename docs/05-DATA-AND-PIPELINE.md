@@ -127,6 +127,22 @@ class Filters(BaseModel):
 
 `POST /api/runs/{id}/query` applies them to the retained derived frame and returns a fresh `AggBundle`. The derived frame stays in the run registry after completion, so the dashboard can keep querying it.
 
+**A dimension cut is not filtered by itself.** `revenue_by_category` is computed
+with every active filter except `category`, and `revenue_by_region` with every
+filter except `region`. Everything else takes all of them. Filtering the category
+chart by the selected category leaves it showing a single bar, with no other
+category visible to compare against or click next, which defeats the interaction
+the chart exists for: `06-UI-SPEC.md` says a category click recomputes region,
+time and top products, and that the clicked bar takes a selected treatment
+among the others.
+
+With nothing selected this changes nothing, so both cuts still sum to the
+headline and the acceptance criterion in the requirement document holds. Under a
+selection they deliberately do not: with a category chosen, `revenue_by_category`
+sums to more than `kpis.net_revenue`, and `revenue_by_region`'s shares are shares
+of that cut's own total, which is what makes a share label answer "of the revenue
+this chart is showing".
+
 Frontend behaviour, specified in `06-UI-SPEC.md`: brushing the weekly revenue chart, or clicking a category bar or a region bar, issues a query and re-renders everything from the response. The frontend does not filter locally, ever. A 12,800-row frame recomputes in single-digit milliseconds, so this is fast and it is real.
 
 This is the strongest answer available to "is that dashboard just a picture." A canned screenshot cannot cross-filter. Budget for it and do not cut it.

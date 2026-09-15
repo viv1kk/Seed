@@ -1,4 +1,255 @@
-/* Tailwind v4 is configured in CSS, not in a JS config file.
-   Tokens, fonts, and everything else visual arrive in phase 4. See
-   docs/06-UI-SPEC.md. Do not start styling before then. */
+/* The plan room. Tokens, type, and the handful of primitives that are easier
+   to say once in CSS than to repeat in class lists. Everything here comes from
+   docs/06-UI-SPEC.md; the values are not open to interpretation.
+
+   Fonts are bundled, not linked. The demo runs on localhost with no network,
+   so a Google Fonts href would simply fail in the room. Archivo's wdth build
+   carries both the weight and the width axis, which the spec uses: condensed
+   for node labels and panel headers, normal for body. */
+
 @import "tailwindcss";
+
+@import "@fontsource-variable/archivo/wdth.css";
+@import "@fontsource/ibm-plex-mono/400.css";
+@import "@fontsource/ibm-plex-mono/500.css";
+
+@theme {
+  --color-ink-900: #0a2138; /* ground */
+  --color-ink-800: #123049; /* panels */
+  --color-ink-700: #183a54; /* raised panel, hover */
+  --color-ink-600: #26485f; /* rules, borders, dashed outlines */
+  --color-chalk: #e9eff3; /* primary text, line work */
+  --color-chalk-dim: #8fa7b8; /* secondary text */
+
+  --color-signal: #f0a63f; /* running */
+  --color-verify: #72be95; /* completed */
+  --color-fault: #dd6257; /* failed */
+  /* The fault hue lightened until it clears 4.5:1 on a panel. The stroke
+     colour above is 3.86:1 there, which is fine for a line and not for a word. */
+  --color-fault-ink: #e3786e;
+
+  --color-paper: #f8f7f3;
+  --color-paper-ink: #1a2230;
+  --color-paper-dim: #5d6673;
+  --color-paper-rule: #e2e0d9;
+
+  /* Chart series: ink blue through to warm ochre, so the print reads as a
+     relative of the console. Five steps, lightness strictly increasing, which
+     is what makes it legible as a magnitude ramp rather than a set of hues. */
+  --color-series-1: #123b59;
+  --color-series-2: #276680;
+  --color-series-3: #4e8d95;
+  --color-series-4: #8fa877;
+  --color-series-5: #cfa84e;
+
+  --font-sans: "Archivo Variable", "Archivo", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    margin: 0;
+    background: var(--color-ink-900);
+    color: var(--color-chalk);
+    font-family: var(--font-sans);
+    font-size: 15px;
+    line-height: 22px;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* One focus treatment, everywhere, in the signal colour. */
+  :focus-visible {
+    outline: 2px solid var(--color-signal);
+    outline-offset: 2px;
+    border-radius: 2px;
+  }
+
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: var(--color-ink-600);
+    border-radius: 5px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@layer components {
+  /* The type scale, one class per role in the spec's table. Sizes are literal
+     rather than stepped, because the table is literal. */
+  .t-run-title {
+    font-size: 28px;
+    line-height: 32px;
+    font-weight: 500;
+  }
+  .t-panel-header {
+    font-size: 13px;
+    line-height: 16px;
+    font-weight: 600;
+    font-stretch: 88%;
+  }
+  .t-node-label {
+    font-size: 14px;
+    line-height: 18px;
+    font-weight: 500;
+    font-stretch: 84%;
+  }
+  .t-body {
+    font-size: 15px;
+    line-height: 22px;
+    font-weight: 400;
+  }
+  .t-secondary {
+    font-size: 13px;
+    line-height: 18px;
+    font-weight: 400;
+  }
+  .t-log {
+    font-family: var(--font-mono);
+    font-size: 12.5px;
+    line-height: 19px;
+    font-weight: 400;
+  }
+  /* The spec sets this at 44px. An INR figure in Indian grouping is twelve
+     glyphs wide, and five of those across a 1100px column do not fit at 44,
+     so the size is allowed to come down and reaches 44 on a wider screen.
+     Tabular figures matter more than the size: they stop the numerals
+     shuffling sideways as a cross-filter changes them. */
+  .t-headline {
+    font-size: clamp(26px, 2.05vw, 44px);
+    line-height: 1.05;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+  }
+  .t-num {
+    font-family: var(--font-mono);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer utilities {
+  /* The running node's dash offset. The only ambient motion on the page, and
+     it exists to mark the live task. */
+  @keyframes seed-march {
+    to {
+      stroke-dashoffset: -16;
+    }
+  }
+  .seed-marching {
+    animation: seed-march 1.1s linear infinite;
+  }
+
+  /* A new artifact row, announcing itself once and then behaving. */
+  @keyframes seed-flash {
+    from {
+      background-color: color-mix(in srgb, var(--color-signal) 30%, transparent);
+    }
+    to {
+      background-color: transparent;
+    }
+  }
+  .seed-flash {
+    animation: seed-flash 400ms ease-out;
+  }
+
+  /* The completion transition: the deliverable wipes up from the bottom edge. */
+  @keyframes seed-wipe {
+    from {
+      clip-path: inset(100% 0 0 0);
+    }
+    to {
+      clip-path: inset(0 0 0 0);
+    }
+  }
+  .seed-wipe {
+    animation: seed-wipe 400ms cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  @keyframes seed-fade {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+  .seed-fade {
+    animation: seed-fade 180ms ease-out;
+  }
+}
+
+/* Pygments output, themed for the cyanotype ground. The classes are Pygments'
+   own short names; the markup arrives from the API already highlighted. */
+.seed-code {
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  line-height: 19px;
+  color: var(--color-chalk);
+  tab-size: 4;
+}
+.seed-code .c,
+.seed-code .c1,
+.seed-code .cm,
+.seed-code .cs,
+.seed-code .sd {
+  color: var(--color-chalk-dim);
+  font-style: italic;
+}
+.seed-code .k,
+.seed-code .kn,
+.seed-code .kd,
+.seed-code .kc,
+.seed-code .ow {
+  color: var(--color-signal);
+}
+.seed-code .s,
+.seed-code .s1,
+.seed-code .s2,
+.seed-code .sa,
+.seed-code .se {
+  color: var(--color-verify);
+}
+.seed-code .nf,
+.seed-code .nc {
+  color: #8fc7e8;
+}
+.seed-code .mi,
+.seed-code .mf,
+.seed-code .il {
+  color: #c9b0e8;
+}
+.seed-code .nb,
+.seed-code .bp {
+  color: #9fd6c4;
+}
+
+/* prefers-reduced-motion: states still change, instantly. The dash march, the
+   numeral count-up, the wipe and the cross-filter cross-fade all stop; the wipe
+   becomes a short fade, which is handled in the component. */
+@media (prefers-reduced-motion: reduce) {
+  .seed-marching,
+  .seed-flash,
+  .seed-wipe,
+  .seed-fade {
+    animation: none;
+  }
+  *,
+  *::before,
+  *::after {
+    transition-duration: 1ms !important;
+  }
+}

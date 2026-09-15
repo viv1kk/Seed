@@ -20,6 +20,17 @@ two agents working in parallel would report timestamps racing ahead at double
 speed. So each runner gets its own hand on the same clock, with its own
 position, and the run's simulated time is the furthest any hand has reached.
 Pause, cancel and speed stay shared, because those are properties of the run.
+
+Two positions per hand, which is the subtle part. ``elapsed_ms`` advances
+*during* a sleep, so that a paused run reports where it stopped rather than
+where it started. ``settled_ms`` advances only when a sleep completes, and it is
+the one ``run_elapsed_ms`` reads. The difference matters because a mid-sleep
+position is a function of how much *real* time has passed, and real time is
+divided by the speed multiplier in slices whose granularity scales with it. Take
+the run clock from mid-sleep positions and a run at 5x stops reporting the same
+timestamps as the same run at 1x, which is exactly what rule 2 forbids. Settled
+positions are only ever exact sums of simulated sleeps, so they carry no trace
+of real time at all.
 """
 
 import asyncio
@@ -70,6 +81,7 @@ class Clock:
             _shared.resumed.set()
         self._shared = _shared
         self._elapsed_ms = _position_ms
+        self._settled_ms = _position_ms
         self._shared.hands.append(self)
 
     def fork(self, at_ms: int | None = None) -> "Clock":
@@ -79,12 +91,9 @@ class Clock:
         hand, and keeps its own position so that parallel work does not make
         simulated time run fast.
 
-        ``at_ms`` sets where the new hand starts. The orchestrator passes an
-        explicit position rather than taking the default, because the default
-        reads the furthest hand, and a hand that is mid-sleep sits at a position
-        that depends on real elapsed time. Forking from it would make a task's
-        start time vary with the speed multiplier, and event contract rule 2
-        says a run at 5x reports the same timestamps as the same run at 1x.
+        The default start is the run clock, so a task that starts late does not
+        begin its timestamps at zero. ``at_ms`` overrides it, for a caller that
+        knows better where a hand belongs.
         """
         position = self.run_elapsed_ms if at_ms is None else at_ms
         return Clock(_shared=self._shared, _position_ms=position)
@@ -95,13 +104,29 @@ class Clock:
 
     @property
     def elapsed_ms(self) -> int:
-        """This hand's own simulated position, in ms since the run began."""
+        """This hand's own simulated position, in ms since the run began.
+
+        Advances during a sleep, so a paused run reports where it stopped.
+        """
         return self._elapsed_ms
 
     @property
+    def settled_ms(self) -> int:
+        """This hand's position as of its last completed sleep.
+
+        Only ever an exact sum of simulated sleeps, so unlike ``elapsed_ms`` it
+        carries no trace of real elapsed time. See the module docstring.
+        """
+        return self._settled_ms
+
+    @property
     def run_elapsed_ms(self) -> int:
-        """The run's simulated clock: the furthest any hand has reached."""
-        return max(hand._elapsed_ms for hand in self._shared.hands)
+        """The run's simulated clock: the furthest any hand has settled.
+
+        This is what the event bus stamps on every event as ``at``, and what a
+        new hand forks from.
+        """
+        return max(hand._settled_ms for hand in self._shared.hands)
 
     @property
     def is_paused(self) -> bool:
@@ -137,7 +162,10 @@ class Clock:
             raise ValueError("ms must not be negative")
         self._raise_if_cancelled()
 
-        started_at = self._elapsed_ms
+        # From the settled position, not the live one. The two are equal here
+        # in every reachable case, and anchoring to the settled one means a
+        # sleep that was interrupted can never leave the hand drifting.
+        started_at = self._settled_ms
         remaining = float(ms)
 
         while remaining > _EPSILON_MS:
@@ -151,13 +179,15 @@ class Clock:
             await self._wait_real(real_slice)
 
             remaining -= real_slice * 1000 * self.speed
-            # Simulated time advances during the sleep, not only at the end, so
-            # an event emitted by another task mid-sleep gets a sensible `at`.
+            # The live position moves during the sleep so that a pause reports
+            # where the run stopped. The settled position does not, and it is
+            # the settled one the run clock reads.
             self._elapsed_ms = started_at + round(ms - max(remaining, 0.0))
 
         # Assign the total exactly rather than letting float error accumulate
-        # across a run of several thousand sleeps.
-        self._elapsed_ms = started_at + ms
+        # across a run of several thousand sleeps. Settling here and only here
+        # is what keeps the run clock free of real time.
+        self._elapsed_ms = self._settled_ms = started_at + ms
         self._raise_if_cancelled()
 
     async def _wait_real(self, seconds: float) -> None:

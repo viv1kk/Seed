@@ -174,7 +174,7 @@ One bundle per query rather than an endpoint per surface, so every figure on scr
 class _Base(BaseModel):
     run_id: str
     seq: int
-    at: int                      # simulated ms since run start
+    at: int                      # run clock, simulated ms. Stamped by the bus.
 
 class RunStarted(_Base):
     type: Literal["run.started"] = "run.started"
@@ -279,7 +279,30 @@ SeedEvent = Annotated[
 ## Rules
 
 1. `seq` is assigned by the event bus, never by a runner. Monotonic per run.
-2. `at` is **simulated** elapsed milliseconds, unaffected by the speed multiplier. A run at 5x reports the same `at` values as the same run at 1x, which keeps logs reproducible across speeds.
+2. `at` is assigned by the event bus too, alongside `seq`, and for the same
+   reason. It is **simulated** elapsed milliseconds, unaffected by the speed
+   multiplier, and it never decreases as `seq` increases.
+
+   `at` describes the *stream*, not the hand that emitted. It is the run clock:
+   the furthest any runner has reached at the moment the event entered the
+   stream. A runner cannot supply this, because it sees only its own clock hand
+   while two agents work at once and their events interleave in arrival order.
+   Stamped at the emit site, the log walks backwards every time the stream
+   crosses from one agent to the other. Sorting it afterwards hides that while
+   telling you the wrong thing, because the order shown is then no longer the
+   order the run did the work in.
+
+   Two consequences worth stating, because both are load-bearing:
+
+   - A task's timestamps depend on what ran beside it. The same task in the same
+     plan reports later `at` values when it is sharing the run with a task that
+     is further along, and that is correct: it is a clock reading, not a
+     stopwatch on the task. Per-task elapsed time is `TaskMetrics.duration_ms`,
+     which is measured on that task's own hand and is not affected.
+   - The bus samples a hand when that hand publishes, never by polling all the
+     hands. A hand mid-sleep sits where real elapsed time has carried it, so
+     polling would make `at` a function of wall-clock timing, break the
+     speed-independence above, and reorder the log between runs at one seed.
 3. Every `task.started` has exactly one matching `task.completed` or `task.failed` with `recoverable=False`.
 4. `task.failed` with `recoverable=True` is followed by `task.retried` and then a terminal event for the same task.
 5. `artifact.created` precedes the `task.completed` of the producing task.

@@ -24,6 +24,26 @@ The consequence is the property the requirement document asks for: revenue by
 region and revenue by category are the same total sliced two ways, and both sum
 to the headline net revenue. If they ever do not, the pipeline is wrong.
 
+## A dimension chart is not filtered by itself
+
+Filtering the category chart by the selected category would leave it showing one
+bar, which is the only value it could still draw. That breaks the interaction it
+exists for: the point of clicking a category is to see the rest of the dashboard
+under it *while still seeing the other categories*, so the selection reads as one
+bar among its peers and the next one is a click away.
+
+So the category cut is computed with every active filter except the category,
+and the region cut with every filter except the region. Everything else, the
+headline, the weekly series and the top products, takes all of them. This is the
+ordinary cross-filter semantic, and with nothing selected it changes nothing:
+the excluded filter is absent, so both cuts still sum to the headline.
+
+One consequence to keep in mind when reading a filtered bundle: with a category
+selected, ``revenue_by_category`` no longer sums to ``kpis.net_revenue``, and
+``revenue_by_region``'s shares are shares of the region cut's own total rather
+than of the headline. That is what makes the percentages answer "of the revenue
+this chart is showing", which is the question a share label is asked.
+
 ## Why every group_by passes maintain_order=True
 
 Polars does not promise an order from a grouped result. Without the flag the
@@ -159,6 +179,16 @@ def _revenue_by_category(revenue: pl.DataFrame) -> list[CategoryRow]:
     ]
 
 
+def _revenue_rows(frame: pl.DataFrame, filters: Filters) -> pl.DataFrame:
+    """The rows that count as revenue under a given set of filters."""
+    return apply_filters(frame, filters).filter(pl.col("status") == REVENUE_STATUS)
+
+
+def _released(filters: Filters, field: str) -> Filters:
+    """The same filters with one dimension let go. See the module docstring."""
+    return filters.model_copy(update={field: None})
+
+
 def _revenue_by_region(revenue: pl.DataFrame, total: float) -> list[RegionRow]:
     by_region = (
         revenue.group_by("region", maintain_order=True)
@@ -216,11 +246,28 @@ def aggregate(frame: pl.DataFrame, filters: Filters | None = None) -> AggBundle:
 
     kpis = _kpis(revenue, returned_count)
 
+    # Each dimension chart drops its own filter, so it keeps every value and the
+    # selected one reads as a bar among its peers. With that dimension
+    # unselected these are the same frame, and the extra pass does not run.
+    by_category = (
+        revenue
+        if active.category is None
+        else _revenue_rows(frame, _released(active, "category"))
+    )
+    by_region = (
+        revenue if active.region is None else _revenue_rows(frame, _released(active, "region"))
+    )
+    region_total = (
+        kpis.net_revenue
+        if active.region is None
+        else float(by_region["net_revenue"].sum())
+    )
+
     return AggBundle(
         kpis=kpis,
         revenue_over_time=_revenue_over_time(revenue),
-        revenue_by_category=_revenue_by_category(revenue),
-        revenue_by_region=_revenue_by_region(revenue, kpis.net_revenue),
+        revenue_by_category=_revenue_by_category(by_category),
+        revenue_by_region=_revenue_by_region(by_region, region_total),
         top_products=_top_products(revenue),
         rows=selected.height,
         computed_ms=round((time.perf_counter() - started) * 1000),

@@ -50,6 +50,19 @@ MAX_PARALLEL: Final[int] = 2
 
 
 @dataclass
+class _Emitted:
+    """One event from a runner, with the clock hand that produced it.
+
+    The hand travels with the event because the bus stamps ``at`` from it. A
+    hand read at any other moment is a question about real elapsed time rather
+    than simulated, and the run stops being reproducible. See ``core/events.py``.
+    """
+
+    event: SeedEvent
+    hand: Clock
+
+
+@dataclass
 class _RunnerDone:
     """A runner's generator finished, successfully or not.
 
@@ -62,7 +75,7 @@ class _RunnerDone:
     ended_ms: int
 
 
-_Message = SeedEvent | _RunnerDone
+_Message = _Emitted | _RunnerDone
 
 
 class Orchestrator:
@@ -91,10 +104,18 @@ class Orchestrator:
         self._drains: dict[str, asyncio.Task[None]] = {}
         self._announced_ready: set[str] = set()
 
-        # The run's simulated clock, advanced only at deterministic moments: a
-        # task finishing. Reading the live maximum across hands instead would
-        # pick up whichever runner happens to be mid-sleep, making timestamps
-        # depend on real elapsed time and so on the speed multiplier.
+        # Where a new clock hand starts. Advanced only at a deterministic
+        # moment, a task finishing, and only to that task's own final position.
+        #
+        # It is tempting to fork from the run clock instead, since that is what
+        # the bus stamps on events, and a hand forked from it would never start
+        # behind the stream. It is also wrong: the run clock at any moment
+        # between events depends on how far the *other* runner has got through
+        # its current sleep, which is a question about real elapsed time. Fork
+        # from that and the two runners' sleeps land in a different order on a
+        # cold process than on a warm one, and two runs at one seed stop
+        # matching. Measured, not assumed: it reordered the log about one run in
+        # four.
         self._timeline_ms = 0
 
     # ------------------------------------------------------------ public
@@ -132,7 +153,7 @@ class Orchestrator:
                     return
                 continue
 
-            await self._bus.publish(message)
+            await self._bus.publish(message.event, message.hand)
 
         await self._complete()
 
@@ -142,7 +163,9 @@ class Orchestrator:
                 continue
             self._announced_ready.add(task_id)
             self._scheduler.mark_ready(task_id)
-            await self._publish(TaskReady(run_id=self._run_id, seq=0, at=self._at, task_id=task_id))
+            await self._publish(
+                TaskReady(run_id=self._run_id, seq=0, at=0, task_id=task_id)
+            )
 
     def _fill_slots(self) -> None:
         free = MAX_PARALLEL - len(self._drains)
@@ -168,37 +191,42 @@ class Orchestrator:
             plan=self._plan,
             artifacts=self._kernel.artifacts,
             kernel=self._kernel,
+            # A task that starts late does not begin its timestamps at zero.
+            # See _timeline_ms for why the position comes from there and not
+            # from the run clock.
             clock=self._clock.fork(self._timeline_ms),
             # Its own generator, derived from the run seed and this task's id.
             # Sharing one across concurrent runners makes the draws depend on
             # scheduling, and the run stops being reproducible.
             rng=derive_rng(self._seed, task.id),
         )
-        started_ms = ctx.clock.elapsed_ms
+        started_ms = ctx.clock.settled_ms
 
         error: BaseException | None = None
         cancelled = False
         try:
-            await self._inbox.put(
+            await self._emit(
+                ctx,
                 TaskStarted(
                     run_id=self._run_id,
                     seq=0,
-                    at=ctx.clock.elapsed_ms,
+                    at=0,
                     task_id=task.id,
                     agent_id=task.agent_id,
-                )
+                ),
             )
             async for event in runner.run(task, ctx):
-                await self._inbox.put(event)
-            await self._inbox.put(
+                await self._emit(ctx, event)
+            await self._emit(
+                ctx,
                 TaskCompleted(
                     run_id=self._run_id,
                     seq=0,
-                    at=ctx.clock.elapsed_ms,
+                    at=0,
                     task_id=task.id,
                     agent_id=task.agent_id,
-                    metrics=self._metrics(task, ctx.clock.elapsed_ms - started_ms),
-                )
+                    metrics=self._metrics(task, ctx.clock.settled_ms - started_ms),
+                ),
             )
         except asyncio.CancelledError:
             # Never swallowed. The run is being torn down, and nobody is left
@@ -211,9 +239,13 @@ class Orchestrator:
             if not cancelled:
                 await self._inbox.put(
                     _RunnerDone(
-                        task_id=task.id, error=error, ended_ms=ctx.clock.elapsed_ms
+                        task_id=task.id, error=error, ended_ms=ctx.clock.settled_ms
                     )
                 )
+
+    async def _emit(self, ctx: AgentContext, event: SeedEvent) -> None:
+        """Hand one runner event to the loop, with the hand that produced it."""
+        await self._inbox.put(_Emitted(event=event, hand=ctx.clock))
 
     def _metrics(self, task: Task, duration_ms: int) -> TaskMetrics:
         """Row counts from the kernel, duration from the clock.
@@ -241,7 +273,7 @@ class Orchestrator:
             )
             return True
 
-        # The run clock only ever moves forward, and only here.
+        # The one place the fork position moves, and it only moves forward.
         self._timeline_ms = max(self._timeline_ms, message.ended_ms)
         self._scheduler.mark_completed(message.task_id)
         await self._maybe_idle(self._plan.tasks[message.task_id].agent_id)
@@ -255,7 +287,7 @@ class Orchestrator:
             TaskFailed(
                 run_id=self._run_id,
                 seq=0,
-                at=self._at,
+                at=0,
                 task_id=task.id,
                 agent_id=task.agent_id,
                 reason=str(message.error),
@@ -267,7 +299,7 @@ class Orchestrator:
                 LogEmitted(
                     run_id=self._run_id,
                     seq=0,
-                    at=self._at,
+                at=0,
                     task_id=task_id,
                     level="warn",
                     message=f"Task {task_id} was skipped because {task.id} failed.",
@@ -285,7 +317,7 @@ class Orchestrator:
         ]
         if not outstanding:
             await self._publish(
-                AgentIdle(run_id=self._run_id, seq=0, at=self._at, agent_id=agent_id)
+                AgentIdle(run_id=self._run_id, seq=0, at=0, agent_id=agent_id)
             )
 
     # ------------------------------------------------------------ lifecycle
@@ -302,7 +334,7 @@ class Orchestrator:
             )
         )
         await self._publish(
-            PlanBuilt(run_id=self._run_id, seq=0, at=self._at, plan=self._plan)
+            PlanBuilt(run_id=self._run_id, seq=0, at=0, plan=self._plan)
         )
 
         # Roster order, not plan order, so the agent rail is stable between runs.
@@ -317,7 +349,7 @@ class Orchestrator:
                     AgentSpawned(
                         run_id=self._run_id,
                         seq=0,
-                        at=self._at,
+                at=0,
                         agent_id=profile.id,
                         role=profile.display_name,
                         assigned_task_ids=assigned,
@@ -329,8 +361,8 @@ class Orchestrator:
             RunCompleted(
                 run_id=self._run_id,
                 seq=0,
-                at=self._at,
-                duration_ms=self._at,
+                at=0,
+                duration_ms=self._bus.at,
                 artifact_ids=list(self._kernel.artifacts),
             )
         )
@@ -338,7 +370,7 @@ class Orchestrator:
     async def _fail_run(self, error: str) -> None:
         await self._abandon_runners()
         await self._publish(
-            RunFailed(run_id=self._run_id, seq=0, at=self._at, error=error)
+            RunFailed(run_id=self._run_id, seq=0, at=0, error=error)
         )
 
     async def _abandon_runners(self) -> None:
@@ -350,11 +382,14 @@ class Orchestrator:
 
     # ------------------------------------------------------------ helpers
 
-    @property
-    def _at(self) -> int:
-        return self._timeline_ms
-
     async def _publish(self, event: SeedEvent) -> None:
+        """Publish a run-level event: one the run emitted, not a runner.
+
+        No hand, so it carries the run clock as it already stands. Every event
+        built in this module leaves with ``at=0``, the same placeholder as
+        ``seq=0``; neither is the orchestrator's to assign. See
+        ``core/events.py``.
+        """
         await self._bus.publish(event)
 
 

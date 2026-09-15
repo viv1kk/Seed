@@ -298,9 +298,11 @@ def _resolve_task_dependencies(
                 ParseError(
                     code="unknown-dependency",
                     task_id=draft.id,
+                    # The exact string from docs/06-UI-SPEC.md. The banner that
+                    # renders it does not rewrite it, so this is the copy.
                     message=(
-                        f"Task {draft.id} depends on {dependency!r}, which is not a "
-                        "task in this document."
+                        f"Task {draft.id} depends on {dependency}, which does not "
+                        "exist. Fix the requirement and build the plan again."
                     ),
                 )
             )
@@ -392,10 +394,13 @@ def _cycle_error(
             message=f"These tasks cannot be ordered: {', '.join(sorted(remaining))}.",
         )
 
+    named = " and ".join(in_cycle) if len(in_cycle) == 2 else ", ".join(in_cycle)
+    # docs/06-UI-SPEC.md, plus the sentence that says what to do about it. An
+    # error names what went wrong and what to do next; the spec's own copy rules
+    # ask for both, and "Seed cannot order the work" is only the first half.
     message = (
-        f"{' and '.join(in_cycle) if len(in_cycle) == 2 else ', '.join(in_cycle)} "
-        f"depend on each other in a loop. Remove one of the Depends on references "
-        f"to break it."
+        f"Tasks {named} depend on each other in a loop. Seed cannot order the "
+        f"work. Remove one of the Depends on references to break it."
     )
     if blocked:
         message += f" {blocked} further task{'s' if blocked != 1 else ''} wait behind it."

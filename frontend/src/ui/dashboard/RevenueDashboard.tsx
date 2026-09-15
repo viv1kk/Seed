@@ -1,220 +1,120 @@
 /**
- * The delivered dashboard: five surfaces over one AggBundle.
+ * The delivered dashboard. Paper white, full colour, five surfaces.
  *
- * This component computes nothing. Every figure on the page arrives already
- * calculated from `POST /api/runs/{id}/query`, and every filter interaction
- * sends the filter back and re-renders from the response. There is no local
- * filtering here and there must never be: the whole claim of this dashboard is
- * that brushing a date range re-runs Polars over the real frame, and a
- * client-side filter would quietly turn it back into a picture.
- *
- * So the data flow has exactly one direction:
+ * The data flow has exactly one direction:
  *
  *     interaction -> Filters -> POST /query -> AggBundle -> render
  *
- * Formatting is the one thing that does happen here, because it is
- * presentation. Indian numbering and INR, percentages to one decimal.
+ * Every figure on the page was computed by Polars over the run's retained frame
+ * at the moment the response was built, and every filter interaction sends the
+ * filter back and re-renders from the next response. Nothing is filtered here.
+ * A client-side filter would quietly turn this back into a picture of a
+ * dashboard, which is the one thing it must not be.
  *
- * Phase 3 styles this minimally on purpose. The paper-white treatment, the
- * chart palette and the completion transition are phase 4, from
- * docs/06-UI-SPEC.md.
+ * While a query is in flight the surfaces dim to 60% rather than showing
+ * spinners. The round trip is single-digit milliseconds and a spinner would
+ * flash.
  */
-
-import {
-  Area,
-  Bar,
-  BarChart,
-  Brush,
-  CartesianGrid,
-  Cell,
-  Line,
-  ComposedChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from "recharts";
 
 import type { AggBundle, Filters } from "../../types/events.ts";
-
-const money = new Intl.NumberFormat("en-IN", {
-  style: "currency",
-  currency: "INR",
-  maximumFractionDigits: 0,
-});
-const compact = new Intl.NumberFormat("en-IN", { notation: "compact", maximumFractionDigits: 1 });
-const count = new Intl.NumberFormat("en-IN");
-
-function percent(value: number): string {
-  return `${(value * 100).toFixed(1)}%`;
-}
-
-/**
- * Recharts types a tooltip value as a union, because a chart can carry
- * anything. Every series here is a number from the bundle, so this narrows once
- * rather than at four call sites, and falls back to the raw text instead of
- * asserting a type the library will not promise.
- */
-function asMoney(value: unknown): string {
-  return typeof value === "number" ? money.format(value) : String(value ?? "");
-}
+import { count, duration, shortDate } from "../present.ts";
+import { Headline } from "./Headline.tsx";
+import { RevenueByCategory, RevenueByRegion, RevenueOverTime, TopProducts } from "./surfaces.tsx";
 
 export interface DashboardProps {
   bundle: AggBundle;
-  /** True while a query is in flight. Surfaces dim rather than showing spinners. */
+  /** True while a query is in flight. */
   pending: boolean;
+  /** True on arrival, which is the one time the numerals count up. */
+  arriving: boolean;
   onFilter: (next: Filters) => void;
 }
 
-export function RevenueDashboard({ bundle, pending, onFilter }: DashboardProps) {
-  const { kpis, filters } = bundle;
+export function RevenueDashboard({ bundle, pending, arriving, onFilter }: DashboardProps) {
+  const { filters } = bundle;
 
-  /** Toggle a dimension: clicking the active value clears it. */
+  /** Toggle a dimension: clicking the value that is already on clears it. */
   const toggle = (key: "category" | "region", value: string) => {
     onFilter({ ...filters, [key]: filters[key] === value ? null : value });
   };
 
-  /**
-   * The brush hands back indices into the weekly series, which are turned into
-   * the dates at those positions. The backend does the filtering; this only
-   * says which window was dragged.
-   */
-  const brush = (range: { startIndex?: number; endIndex?: number }) => {
-    const points = bundle.revenue_over_time;
-    const from = points[range.startIndex ?? 0];
-    const to = points[range.endIndex ?? points.length - 1];
-    if (from === undefined || to === undefined) return;
-    onFilter({ ...filters, date_from: from.week, date_to: to.week });
-  };
-
-  const clear = () => onFilter({});
   const chips = activeChips(filters);
 
   return (
-    <section style={{ opacity: pending ? 0.6 : 1 }} aria-busy={pending}>
-      <h2>Revenue dashboard</h2>
+    <div className="h-full overflow-y-auto bg-paper px-6 py-5 text-paper-ink">
+      <header className="flex flex-wrap items-baseline justify-between gap-3 pb-4">
+        <h2 className="t-run-title">Revenue and margin</h2>
+        <p className="t-secondary text-paper-dim">
+          {count(bundle.rows)} rows in this selection, aggregated in{" "}
+          {duration(bundle.computed_ms)}.
+        </p>
+      </header>
 
       {chips.length > 0 && (
-        <p>
+        <div className="flex flex-wrap items-center gap-2 pb-4">
           {chips.map((chip) => (
-            <span key={chip}>{chip} </span>
+            <button
+              key={chip.label}
+              type="button"
+              onClick={() => onFilter({ ...filters, ...chip.clears })}
+              className="t-secondary flex items-center gap-1.5 rounded-full border border-paper-rule bg-white px-2.5 py-1 text-paper-ink hover:border-paper-dim"
+            >
+              {chip.label}
+              <span aria-hidden className="text-paper-dim">
+                x
+              </span>
+              <span className="sr-only">Remove this filter</span>
+            </button>
           ))}
-          <button type="button" onClick={clear}>
+          <button
+            type="button"
+            onClick={() => onFilter({})}
+            className="t-secondary px-1 text-paper-dim underline underline-offset-2 hover:text-paper-ink"
+          >
             Clear filters
           </button>
-        </p>
+        </div>
       )}
 
-      <dl>
-        <Figure label="Net revenue" value={money.format(kpis.net_revenue)} />
-        <Figure label="Orders" value={count.format(kpis.order_count)} />
-        <Figure label="Average order value" value={money.format(kpis.average_order_value)} />
-        <Figure label="Margin" value={percent(kpis.margin_pct)} />
-        <Figure label="Return rate" value={percent(kpis.return_rate)} />
-      </dl>
+      <div
+        aria-busy={pending}
+        className="flex flex-col gap-5 transition-opacity duration-[180ms]"
+        style={{ opacity: pending ? 0.6 : 1 }}
+      >
+        <Headline kpis={bundle.kpis} animate={arriving} />
 
-      <h3>Revenue over time</h3>
-      <ResponsiveContainer width="100%" height={240}>
-        <ComposedChart data={bundle.revenue_over_time}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="week" />
-          <YAxis yAxisId="revenue" tickFormatter={(v: number) => compact.format(v)} />
-          <YAxis yAxisId="orders" orientation="right" />
-          <Tooltip formatter={asMoney} />
-          <Area yAxisId="revenue" type="monotone" dataKey="net_revenue" name="Net revenue" />
-          <Line yAxisId="orders" type="monotone" dataKey="order_count" name="Orders" dot={false} />
-          <Brush dataKey="week" height={20} onChange={brush} />
-        </ComposedChart>
-      </ResponsiveContainer>
+        <RevenueOverTime bundle={bundle} onFilter={onFilter} />
 
-      <h3>Revenue by category</h3>
-      <ResponsiveContainer width="100%" height={240}>
-        <BarChart data={bundle.revenue_by_category} layout="vertical">
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis type="number" tickFormatter={(v: number) => compact.format(v)} />
-          <YAxis type="category" dataKey="category" width={90} />
-          <Tooltip formatter={asMoney} />
-          <Bar dataKey="net_revenue" name="Net revenue">
-            {bundle.revenue_by_category.map((row) => (
-              <Cell
-                key={row.category}
-                cursor="pointer"
-                opacity={filters.category === null || filters.category === row.category ? 1 : 0.4}
-                onClick={() => toggle("category", row.category)}
-              />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
+        <div className="grid grid-cols-1 gap-5 xl:grid-cols-2">
+          <RevenueByCategory bundle={bundle} onToggle={(value) => toggle("category", value)} />
+          <RevenueByRegion bundle={bundle} onToggle={(value) => toggle("region", value)} />
+        </div>
 
-      <h3>Revenue by region</h3>
-      <ResponsiveContainer width="100%" height={240}>
-        <BarChart data={bundle.revenue_by_region}>
-          <CartesianGrid strokeDasharray="3 3" />
-          <XAxis dataKey="region" />
-          <YAxis tickFormatter={(v: number) => compact.format(v)} />
-          <Tooltip formatter={asMoney} />
-          <Bar dataKey="net_revenue" name="Net revenue">
-            {bundle.revenue_by_region.map((row) => (
-              <Cell
-                key={row.region}
-                cursor="pointer"
-                opacity={filters.region === null || filters.region === row.region ? 1 : 0.4}
-                onClick={() => toggle("region", row.region)}
-              />
-            ))}
-          </Bar>
-        </BarChart>
-      </ResponsiveContainer>
-
-      <h3>Top products</h3>
-      <table>
-        <thead>
-          <tr>
-            <th>SKU</th>
-            <th>Product</th>
-            <th>Units</th>
-            <th>Net revenue</th>
-            <th>Margin</th>
-          </tr>
-        </thead>
-        <tbody>
-          {bundle.top_products.map((row) => (
-            <tr key={row.sku}>
-              <td>{row.sku}</td>
-              <td>{row.product_name}</td>
-              <td>{count.format(row.units)}</td>
-              <td>{money.format(row.net_revenue)}</td>
-              <td>{percent(row.margin_pct)}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-
-      <p>
-        {count.format(bundle.rows)} rows in the current selection, aggregated in{" "}
-        {bundle.computed_ms} ms.
-      </p>
-    </section>
-  );
-}
-
-function Figure({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <dt>{label}</dt>
-      <dd>{value}</dd>
+        <TopProducts bundle={bundle} />
+      </div>
     </div>
   );
 }
 
-/** The active filters, as text. Reads the response, never local state. */
-function activeChips(filters: Filters): string[] {
-  const chips: string[] = [];
+interface Chip {
+  label: string;
+  /** The filter fields this chip clears when removed. */
+  clears: Partial<Filters>;
+}
+
+/** The active filters, read off the response rather than off local state. */
+function activeChips(filters: Filters): Chip[] {
+  const chips: Chip[] = [];
   if (filters.date_from != null || filters.date_to != null) {
-    chips.push(`${filters.date_from ?? "start"} to ${filters.date_to ?? "end"}`);
+    const from = filters.date_from == null ? "the start" : shortDate(filters.date_from);
+    const to = filters.date_to == null ? "the end" : shortDate(filters.date_to);
+    chips.push({ label: `${from} to ${to}`, clears: { date_from: null, date_to: null } });
   }
-  if (filters.category != null) chips.push(filters.category);
-  if (filters.region != null) chips.push(filters.region);
+  if (filters.category != null) {
+    chips.push({ label: filters.category, clears: { category: null } });
+  }
+  if (filters.region != null) {
+    chips.push({ label: filters.region, clears: { region: null } });
+  }
   return chips;
 }

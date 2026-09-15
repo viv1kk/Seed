@@ -64,20 +64,17 @@ class AgentRunner(ABC):
 class Emitter:
     """Builds events for one task, so runners do not repeat the bookkeeping.
 
-    ``seq`` is left at 0 on purpose. The event bus assigns it (contract rule 1)
-    and a runner that set its own would be wrong the moment two runners are
-    emitting at once. ``at`` is read from this runner's clock hand at the moment
-    the event is built.
+    ``seq`` and ``at`` are both left at 0 on purpose. The event bus assigns them
+    (contract rules 1 and 2), and for the same reason: a runner sees only its
+    own hand, while events from every runner interleave on one stream. A runner
+    stamping either field would be wrong the moment two agents work at once.
+    See ``core/events.py``.
     """
 
     def __init__(self, ctx: AgentContext, task: Task, agent_id: AgentId) -> None:
         self._ctx = ctx
         self._task = task
         self._agent_id = agent_id
-
-    @property
-    def at(self) -> int:
-        return self._ctx.clock.elapsed_ms
 
     @property
     def run_id(self) -> str:
@@ -88,7 +85,7 @@ class Emitter:
         return LogEmitted(
             run_id=self._ctx.run_id,
             seq=0,
-            at=self.at,
+            at=0,
             agent_id=self._agent_id,
             task_id=self._task.id,
             level=level,
@@ -101,7 +98,7 @@ class Emitter:
         return LogEmitted(
             run_id=self._ctx.run_id,
             seq=0,
-            at=self.at,
+            at=0,
             agent_id=self._agent_id,
             task_id=self._task.id,
             level=level,
@@ -113,7 +110,7 @@ class Emitter:
         return TaskProgress(
             run_id=self._ctx.run_id,
             seq=0,
-            at=self.at,
+            at=0,
             task_id=self._task.id,
             step_id=step_id,
             pct=pct,
@@ -123,7 +120,7 @@ class Emitter:
         return ArtifactStreaming(
             run_id=self._ctx.run_id,
             seq=0,
-            at=self.at,
+            at=0,
             artifact_id=artifact_id,
             path=path,
             lang=lang,
@@ -135,7 +132,7 @@ class Emitter:
         return ArtifactChunk(
             run_id=self._ctx.run_id,
             seq=0,
-            at=self.at,
+            at=0,
             artifact_id=artifact_id,
             text=text,
         )
@@ -144,7 +141,7 @@ class Emitter:
         return ArtifactCreated(
             run_id=self._ctx.run_id,
             seq=0,
-            at=self.at,
+            at=0,
             artifact=artifact,
         )
 
@@ -158,7 +155,7 @@ class Emitter:
         return TaskFailed(
             run_id=self._ctx.run_id,
             seq=0,
-            at=self.at,
+            at=0,
             task_id=self._task.id,
             agent_id=self._agent_id,
             reason=reason,
@@ -169,7 +166,7 @@ class Emitter:
         return TaskRetried(
             run_id=self._ctx.run_id,
             seq=0,
-            at=self.at,
+            at=0,
             task_id=self._task.id,
             agent_id=self._agent_id,
             attempt=attempt,

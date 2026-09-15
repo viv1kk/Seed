@@ -1,27 +1,61 @@
 /**
- * Phase 2 shell. Deliberately unstyled.
+ * The plan room.
  *
- * Load an example, build the plan, start the run, and watch it over SSE. The
- * plan room arrives in phase 4 and starting on it now is the failure mode the
- * implementation plan warns about.
+ * Three columns at 1440: the requirement as written, the plan graph over the
+ * log, and the agents over the artifacts. On `run.completed` the requirement
+ * and log columns recede and the dashboard takes the screen.
  *
- * Nothing here decides anything about the run. Statuses, progress and metrics
- * all arrive as events; this only draws them and sends control actions back.
+ * This component owns the run's lifecycle wiring and nothing about its content.
+ * Statuses, progress, metrics and artifacts all arrive as events and are
+ * applied by the reducer; the dashboard's figures all arrive from
+ * `POST /api/runs/{id}/query`. Nothing on this page is computed here.
  */
-import { useCallback, useEffect, useRef, useState } from "react";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { controlRun, createPlan, createRun, fetchExamples, queryRun } from "../api/client.ts";
 import { subscribeToRun, type StreamHandle } from "../api/stream.ts";
 import { forgetRun, recallRun, rememberRun } from "../state/session.ts";
 import { seedStore } from "../state/store.ts";
+import { viewStore } from "../state/viewStore.ts";
 import type { AggBundle, ExampleSummary, Filters, ParseError, Plan } from "../types/events.ts";
-import { ArtifactPanel } from "./ArtifactPanel.tsx";
+import { AgentRail } from "./agents/AgentRail.tsx";
+import { ArtifactPanel } from "./artifacts/ArtifactPanel.tsx";
+import { ArtifactViewer, useOpenOnStream } from "./artifacts/ArtifactViewer.tsx";
 import { RevenueDashboard } from "./dashboard/RevenueDashboard.tsx";
-import { PlanView } from "./PlanView.tsx";
-import { AgentRail, LogStream, PlanProgress } from "./RunView.tsx";
+import { prefersReducedMotion } from "./dashboard/Headline.tsx";
+import { Inspector } from "./graph/Inspector.tsx";
+import { PlanGraph } from "./graph/PlanGraph.tsx";
+import { BottomPanel } from "./shell/BottomPanel.tsx";
+import { Header, type Phase } from "./shell/Header.tsx";
+import {
+  ConnectionNotice,
+  EmptyState,
+  ParseErrors,
+  PlanWarnings,
+  RunOutcome,
+} from "./shell/Notices.tsx";
+import { RequirementColumn } from "./shell/RequirementColumn.tsx";
+import { NARROW, useDelivery, useMediaQuery } from "./shell/useLayoutHints.ts";
 import { useSeedStore } from "./useSeedStore.ts";
+import { useViewStore, viewActions } from "./useViewStore.ts";
 
-const SPEEDS = [1, 2, 5] as const;
+const DEFAULT_SEED = 4471;
+
+/** Escape closes whatever is open, from anywhere on the page. */
+export function useGlobalEscape(): void {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      const actions = viewActions();
+      if (actions.openArtifactId !== null) actions.openArtifact(null);
+      else if (actions.selectedTaskId !== null) actions.selectTask(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+}
+
 
 export function App() {
   const [examples, setExamples] = useState<ExampleSummary[]>([]);
@@ -31,20 +65,33 @@ export function App() {
   const [failure, setFailure] = useState<string | null>(null);
   const [runId, setRunId] = useState<string | null>(null);
   const [paused, setPaused] = useState(false);
-  const [speed, setSpeed] = useState<number>(1);
-  const [rejoined, setRejoined] = useState(false);
+  const [speed, setSpeed] = useState(1);
+  const [seed, setSeed] = useState(DEFAULT_SEED);
   const [bundle, setBundle] = useState<AggBundle | null>(null);
   const [querying, setQuerying] = useState(false);
+  const [showingDashboard, setShowingDashboard] = useState(true);
 
-  const run = useSeedStore((state) => state.run);
+  const completed = useSeedStore((state) => state.run.completed);
+  const runError = useSeedStore((state) => state.run.error);
+  const durationMs = useSeedStore((state) => state.run.durationMs);
+  const artifactCount = useSeedStore((state) => state.run.artifacts.length);
+  const warnings = plan?.warnings ?? [];
+
+  const selectedTaskId = useViewStore((state) => state.selectedTaskId);
+  const openArtifactId = useViewStore((state) => state.openArtifactId);
+
   const stream = useRef<StreamHandle | null>(null);
   const restored = useRef(false);
+  const narrow = useMediaQuery(NARROW);
+  useOpenOnStream();
+  useGlobalEscape();
 
   const watch = useCallback((id: string) => {
     stream.current?.close();
     stream.current = subscribeToRun(id, {
       onBatch: (events) => seedStore.getState().applyEvents(events),
       onError: setFailure,
+      onOpen: () => setFailure(null),
     });
   }, []);
 
@@ -55,8 +102,7 @@ export function App() {
   }, []);
 
   // Rejoin whatever this tab was watching before the refresh. The stream
-  // replays from seq=0, so the run is recovered in full rather than joined
-  // late; the plan is rebuilt from the same document for the same reason.
+  // replays from seq=0, so the run is recovered in full rather than joined late.
   useEffect(() => {
     if (restored.current) return; // StrictMode runs effects twice in development
     restored.current = true;
@@ -74,7 +120,6 @@ export function App() {
         }
         setPlan(result.plan);
         setRunId(watched.runId);
-        setRejoined(true);
         seedStore.getState().reset();
         watch(watched.runId);
       })
@@ -83,50 +128,47 @@ export function App() {
 
   useEffect(() => () => stream.current?.close(), []);
 
-  /**
-   * Ask for the figures once the run has produced them.
-   *
-   * The unfiltered bundle comes from the same endpoint every cross-filter uses,
-   * so the delivered dashboard and a filtered one are the same code path on
-   * both sides. `run.completed` is the backend's word, not a guess made here.
-   */
   const query = useCallback(
     (filters: Filters) => {
       if (runId === null) return;
       setQuerying(true);
       queryRun(runId, filters)
         .then(setBundle)
-        .catch((error: unknown) => setFailure(String(error)))
+        .catch(() => setFailure("The dashboard could not be refreshed. Try the filter again."))
         .finally(() => setQuerying(false));
     },
     [runId],
   );
 
+  // The unfiltered bundle comes from the same endpoint every cross-filter uses,
+  // so the delivered dashboard and a filtered one are one code path on both
+  // sides. `completed` is the backend's word, not a guess made here.
   useEffect(() => {
-    if (runId === null || !run.completed) return;
+    if (runId === null || !completed) return;
     query({});
-  }, [runId, run.completed, query]);
+  }, [runId, completed, query]);
 
   const buildPlan = useCallback((id: string) => {
     stream.current?.close();
     stream.current = null;
     forgetRun();
     seedStore.getState().reset();
+    viewStore.getState().reset();
     setExampleId(id);
     setBundle(null);
     setRunId(null);
-    setRejoined(false);
     setPaused(false);
     setPlan(null);
     setErrors([]);
     setFailure(null);
+    setShowingDashboard(true);
 
     createPlan({ example_id: id })
       .then((result) => {
         if (result.status === "ok") setPlan(result.plan);
         else setErrors(result.errors);
       })
-      .catch((error: unknown) => setFailure(String(error)));
+      .catch(() => setFailure("Cannot reach the backend. Start it on port 8000."));
   }, []);
 
   const start = useCallback(() => {
@@ -134,25 +176,26 @@ export function App() {
     // Replay always starts at seq 0, so the store has to start empty or every
     // line would be applied twice.
     seedStore.getState().reset();
+    viewStore.getState().reset();
     setFailure(null);
-    setRejoined(false);
     setBundle(null);
+    setShowingDashboard(true);
 
-    createRun(plan.id, speed)
+    createRun(plan.id, speed, seed)
       .then(({ run_id }) => {
         setRunId(run_id);
         setPaused(false);
         rememberRun({ runId: run_id, exampleId, speed });
         watch(run_id);
       })
-      .catch((error: unknown) => setFailure(String(error)));
-  }, [plan, exampleId, speed, watch]);
+      .catch(() => setFailure("The run could not be started. Check the backend and try again."));
+  }, [plan, exampleId, speed, seed, watch]);
 
   const togglePause = useCallback(() => {
     if (runId === null) return;
     controlRun(runId, paused ? "resume" : "pause")
       .then((state) => setPaused(state.paused))
-      .catch((error: unknown) => setFailure(String(error)));
+      .catch(() => undefined);
   }, [runId, paused]);
 
   const reset = useCallback(() => {
@@ -161,10 +204,12 @@ export function App() {
     stream.current = null;
     forgetRun();
     seedStore.getState().reset();
+    viewStore.getState().reset();
     setRunId(null);
-    setRejoined(false);
     setPaused(false);
     setBundle(null);
+    setFailure(null);
+    setShowingDashboard(true);
   }, [runId]);
 
   const changeSpeed = useCallback(
@@ -175,98 +220,172 @@ export function App() {
     [runId],
   );
 
-  const running = runId !== null && !run.completed && run.error === null;
+  const phase: Phase = useMemo(() => {
+    if (plan === null) return "idle";
+    if (runId === null) return "planned";
+    if (completed || runError !== null) return "done";
+    return paused ? "paused" : "running";
+  }, [plan, runId, completed, runError, paused]);
+
+  // The completion transition. `delivery` is "dimming" for 250ms, then
+  // "delivered", and the dashboard wipes up once it lands. Toggling back to the
+  // run does not re-run it: the moment happens once.
+  const delivery = useDelivery(completed && bundle !== null);
+  const onDashboard = delivery === "delivered" && bundle !== null && showingDashboard;
+  const dimming = delivery === "dimming";
+
+  if (plan === null) {
+    return (
+      <div className="flex h-full flex-col">
+        <Header
+          requirementName={null}
+          seed={seed}
+          onSeedChange={setSeed}
+          speed={speed}
+          onSpeedChange={changeSpeed}
+          phase="idle"
+          primaryLabel="Build the plan"
+          onPrimary={() => {
+            const first = examples[0];
+            if (first !== undefined) buildPlan(first.id);
+          }}
+          primaryDisabled={examples.length === 0}
+          onTogglePause={togglePause}
+          onReset={reset}
+        />
+        <ConnectionNotice message={failure} />
+        <ParseErrors errors={errors} />
+        <main className="min-h-0 flex-1">
+          <EmptyState
+            examples={examples}
+            onPick={buildPlan}
+            loading={examples.length === 0 && failure === null}
+          />
+        </main>
+      </div>
+    );
+  }
 
   return (
-    <main>
-      <h1>Seed</h1>
-      <p>Agent reasoning is scripted. The pipeline and all figures are computed from real data.</p>
-
-      <section>
-        <h2>Requirements</h2>
-        {examples.length === 0 && failure === null && <p>Loading examples.</p>}
-        <ul>
-          {examples.map((example) => (
-            <li key={example.id}>
-              <button type="button" onClick={() => buildPlan(example.id)}>
-                {example.title}
-              </button>
-            </li>
-          ))}
-        </ul>
-      </section>
-
-      {failure !== null && <p>{failure}</p>}
-
-      {errors.length > 0 && (
-        <section>
-          <h2>This requirement cannot be run</h2>
-          <ul>
-            {errors.map((error, index) => (
-              <li key={`${error.code}-${index}`}>
-                {error.task_id !== null && error.task_id !== undefined && (
-                  <strong>{error.task_id} </strong>
-                )}
-                {error.message}
-              </li>
-            ))}
-          </ul>
-        </section>
-      )}
-
-      {plan !== null && (
-        <>
-          <section>
-            <h2>Controls</h2>
-            <button type="button" onClick={start} disabled={running}>
-              Start the run
-            </button>{" "}
-            <button type="button" onClick={togglePause} disabled={!running}>
-              {paused ? "Resume" : "Pause"}
-            </button>{" "}
-            <button type="button" onClick={reset} disabled={runId === null}>
-              Reset
-            </button>{" "}
-            {SPEEDS.map((option) => (
+    <div className="relative flex h-full flex-col">
+      <Header
+        requirementName={exampleId === null ? null : `${exampleId}.md`}
+        seed={seed}
+        onSeedChange={setSeed}
+        speed={speed}
+        onSpeedChange={changeSpeed}
+        phase={phase}
+        primaryLabel="Start the run"
+        onPrimary={start}
+        primaryDisabled={phase === "running" || phase === "paused"}
+        onTogglePause={togglePause}
+        onReset={reset}
+        extra={
+          <div className="flex items-center gap-3">
+            <RunOutcome
+              completed={completed}
+              durationMs={durationMs}
+              artifactCount={artifactCount}
+              rows={bundle?.rows ?? null}
+              error={runError}
+            />
+            {completed && bundle !== null && (
               <button
-                key={option}
                 type="button"
-                onClick={() => changeSpeed(option)}
-                disabled={speed === option}
+                onClick={() => setShowingDashboard((shown) => !shown)}
+                className="t-secondary rounded-sm border border-ink-600 px-2.5 py-0.5 text-chalk-dim hover:border-chalk-dim hover:text-chalk"
               >
-                {option}x
+                {showingDashboard ? "Show the run" : "Show the dashboard"}
               </button>
-            ))}
-            <p>
-              {runId === null
-                ? "Not started."
-                : run.completed
-                  ? `Built in ${run.durationMs ?? 0} ms. ${run.artifacts.length} artifacts.`
-                  : run.error !== null
-                    ? run.error
-                    : `Running. ${run.lastSeq + 1} events.`}
-            </p>
-            {rejoined && <p>Rejoined a run already in progress. Replayed from the start.</p>}
-          </section>
+            )}
+          </div>
+        }
+      />
 
-          {runId === null ? (
-            <PlanView plan={plan} />
+      <ConnectionNotice message={failure} />
+      <ParseErrors errors={errors} />
+      <PlanWarnings warnings={warnings} />
+
+      <main
+        className={`grid min-h-0 flex-1 transition-opacity duration-[250ms] ${
+          onDashboard
+            ? "grid-cols-[minmax(0,1fr)_300px] max-[1100px]:grid-cols-[minmax(0,1fr)]"
+            : narrow
+              ? "grid-cols-[280px_minmax(0,1fr)]"
+              : "grid-cols-[320px_minmax(0,1fr)_300px]"
+        }`}
+        style={{ opacity: dimming ? 0.7 : 1 }}
+      >
+        {/* Left: the document, or the inspector over it. It recedes once the
+            deliverable has landed. */}
+        {!onDashboard && (
+          <section
+            className="min-h-0 overflow-hidden border-r border-ink-600"
+            aria-label="Requirement"
+          >
+            {selectedTaskId === null ? (
+              <RequirementColumn
+                markdown={plan.source_markdown}
+                plan={plan}
+                selectedTaskId={null}
+              />
+            ) : (
+              <Inspector plan={plan} taskId={selectedTaskId} />
+            )}
+          </section>
+        )}
+
+        {/* Centre: the graph over the log, or the deliverable. */}
+        <section className="relative flex min-h-0 flex-col" aria-label="Run">
+          {onDashboard && bundle !== null ? (
+            <div className={prefersReducedMotion() ? "seed-fade h-full" : "seed-wipe h-full"}>
+              <RevenueDashboard bundle={bundle} pending={querying} arriving onFilter={query} />
+            </div>
           ) : (
             <>
-              <PlanProgress plan={plan} run={run} />
-              <AgentRail run={run} />
-              {bundle !== null && (
-                <RevenueDashboard bundle={bundle} pending={querying} onFilter={query} />
+              <PlanGraph plan={plan} />
+              <div className="flex h-[34%] min-h-[160px] flex-col">
+                <BottomPanel tabbed={narrow} />
+              </div>
+              {openArtifactId !== null && (
+                <div className="absolute inset-0 z-10 bg-ink-800 shadow-2xl">
+                  <ArtifactViewer artifactId={openArtifactId} />
+                </div>
               )}
-              <ArtifactPanel run={run} />
-              <section>
-                <h2>Log</h2>
-                <LogStream logs={run.logs} />
-              </section>
             </>
           )}
-        </>
+        </section>
+
+        {/* Right: who is working, and what they have made. It stays through the
+            transition, because "open clean.py" is the next question asked. */}
+        {!narrow && (
+          <aside
+            className="flex min-h-0 flex-col border-l border-ink-600"
+            aria-label="Agents and artifacts"
+          >
+            <h2 className="t-panel-header border-b border-ink-600 px-3 py-1.5 text-chalk-dim">
+              Agents
+            </h2>
+            <div className="max-h-[45%] shrink-0 overflow-y-auto">
+              <AgentRail />
+            </div>
+            <h2 className="t-panel-header border-t border-b border-ink-600 px-3 py-1.5 text-chalk-dim">
+              Artifacts
+            </h2>
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              <ArtifactPanel />
+            </div>
+          </aside>
+        )}
+      </main>
+
+      {/* On the dashboard the viewer opens over the whole console, so that
+          "show me the code that produced this" does not mean going back. */}
+      {onDashboard && openArtifactId !== null && (
+        <div className="absolute inset-x-0 top-[104px] bottom-0 z-20 bg-ink-800 shadow-2xl">
+          <ArtifactViewer artifactId={openArtifactId} />
+        </div>
       )}
-    </main>
+    </div>
   );
 }

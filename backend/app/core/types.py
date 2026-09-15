@@ -214,7 +214,7 @@ class AggBundle(BaseModel):
 class _Base(BaseModel):
     run_id: str
     seq: int
-    at: int  # simulated ms since run start
+    at: int  # the run clock in simulated ms, stamped by the bus. See rule 2.
 
 
 class RunStarted(_Base):

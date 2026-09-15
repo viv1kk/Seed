@@ -374,12 +374,24 @@ async def test_concurrent_work_does_not_make_simulated_time_run_fast() -> None:
 
 
 def _by_task(events: list[SeedEvent]) -> dict[str, list[str]]:
+    """Each task's own events, in order, with everything run-wide excluded.
+
+    ``at`` is excluded along with ``run_id`` and ``seq``, and for the same
+    reason: it is assigned by the bus and describes the stream, not the task.
+    Two concurrent runners emit at whatever moment their sleeps end, and when
+    two emissions land close enough together the order they reach the bus in is
+    a real-time race. That race was always there; before the run clock existed
+    it was invisible here, because a task's timestamps came from its own hand.
+    What must not move is the narration: the lines, their order within the task,
+    and the numbers in them. That is what this compares. The run clock has its
+    own tests, below and in test_events.py.
+    """
     grouped: dict[str, list[str]] = {}
     for event in events:
         task_id = getattr(event, "task_id", None)
         if task_id is not None:
             grouped.setdefault(task_id, []).append(
-                event.model_dump_json(exclude={"run_id", "seq"})
+                event.model_dump_json(exclude={"run_id", "seq", "at"})
             )
     return grouped
 
@@ -414,11 +426,11 @@ async def test_a_parallel_run_reports_the_same_duration_every_time() -> None:
 async def test_every_agent_says_the_same_lines_across_runs() -> None:
     """Including the numbers in them, which is what someone will check."""
 
-    def per_agent(events: list[SeedEvent]) -> dict[str | None, list[tuple[int, str]]]:
-        grouped: dict[str | None, list[tuple[int, str]]] = {}
+    def per_agent(events: list[SeedEvent]) -> dict[str | None, list[str]]:
+        grouped: dict[str | None, list[str]] = {}
         for event in events:
             if event.type == "log.emitted":
-                grouped.setdefault(event.agent_id, []).append((event.at, event.message))
+                grouped.setdefault(event.agent_id, []).append(event.message)
         return grouped
 
     assert per_agent(await run_plan(PARALLEL, seed=7)) == per_agent(
@@ -436,14 +448,38 @@ async def test_a_tasks_narration_does_not_depend_on_what_ran_beside_it() -> None
     the seed and its own id, not of what the scheduler was doing at the time.
     """
 
-    def lines(events: list[SeedEvent]) -> list[tuple[int, str]]:
+    def lines(events: list[SeedEvent]) -> list[str]:
         return [
-            (e.at, e.message)
-            for e in events
-            if e.type == "log.emitted" and e.task_id == "1.1"
+            e.message for e in events if e.type == "log.emitted" and e.task_id == "1.1"
         ]
 
     assert lines(await run_plan(LINEAR, seed=7)) == lines(await run_plan(PARALLEL, seed=7))
+
+
+@pytest.mark.asyncio
+async def test_simulated_time_never_goes_backwards_on_a_parallel_run() -> None:
+    """Contract rule 2, and the whole reason the bus stamps `at`.
+
+    Two agents work at once and their hands sit at different positions. Read `at`
+    off the emitting hand and the log walks backwards every time the stream
+    crosses between them. Read it off the run clock and it rises with `seq`,
+    which is what a log has to do to be readable.
+    """
+    events = await run_plan(PARALLEL, seed=7)
+    ats = [event.at for event in events]
+
+    assert ats == sorted(ats)
+    assert len({event.agent_id for event in events if event.type == "task.started"}) > 1
+
+
+@pytest.mark.asyncio
+async def test_a_task_that_starts_late_does_not_start_its_clock_at_zero() -> None:
+    events = await run_plan(LINEAR)
+    started = {e.task_id: e.at for e in events if e.type == "task.started"}
+
+    assert started["1.1"] == 0
+    assert started["1.2"] > 0
+    assert started["1.3"] > started["1.2"]
 
 
 # ---------------------------------------------------------------- failure

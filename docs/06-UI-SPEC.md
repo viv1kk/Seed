@@ -179,7 +179,7 @@ Exact strings. Sentence case, active voice, no em dashes.
 | Reset | `Reset` |
 | Plan warning banner | `{n} tasks had no agent assigned. Seed inferred an owner from the task text.` |
 | Parse error banner | `Task {id} depends on {ref}, which does not exist. Fix the requirement and build the plan again.` |
-| Cycle error | `Tasks {ids} depend on each other in a loop. Seed cannot order the work.` |
+| Cycle error | `Tasks {ids} depend on each other in a loop. Seed cannot order the work. Remove one of the Depends on references to break it.` |
 | Connection lost | `Lost the event stream. Reconnecting.` |
 | Log empty | `The log fills as agents work.` |
 | Artifacts empty | `Files appear here as agents produce them.` |

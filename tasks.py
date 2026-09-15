@@ -5,6 +5,7 @@
     python tasks.py types       regenerate the TypeScript contract
     python tasks.py data        regenerate the bundled CSVs (commit the result)
     python tasks.py check       the full gate: lint, types, tests, build
+    python tasks.py demo        build the frontend and serve the whole thing on 8000
     python tasks.py api         backend on 8000, reloading
     python tasks.py web         frontend on 5173, proxying /api to 8000
 
@@ -34,6 +35,10 @@ IS_WINDOWS = platform.system() == "Windows"
 VENV_PYTHON = VENV / ("Scripts/python.exe" if IS_WINDOWS else "bin/python")
 
 SCHEMA_OUT = FRONTEND / "src" / "types" / "events.schema.json"
+
+# Pinned, because the demo laptop needs one address known in advance and checked
+# for a squatter before the room fills up.
+DEMO_PORT = 8000
 
 # npm is a shell script on Windows, so it needs a shell to resolve.
 NPM = "npm.cmd" if IS_WINDOWS else "npm"
@@ -105,9 +110,37 @@ def check() -> None:
     run([NPM, "run", "build"], FRONTEND, "vite build")
 
 
+def demo() -> None:
+    """What the client sees: one process on 8000 serving the API and the build.
+
+    Types first, then the bundle, then uvicorn. Regenerating the contract here is
+    deliberate: the demo must never run against TypeScript that has drifted from
+    the Pydantic models, and this is the command that starts the demo.
+
+    No --reload. A reloader watching the tree mid-presentation is a way to lose a
+    run to a stray file save.
+    """
+    types()
+    run([NPM, "run", "build"], FRONTEND, "vite build")
+    print(f"\n\033[1mSeed is on http://127.0.0.1:{DEMO_PORT}\033[0m\n", flush=True)
+    run(
+        [require_venv(), "-m", "uvicorn", "app.main:app", "--port", str(DEMO_PORT)],
+        BACKEND,
+        "uvicorn",
+    )
+
+
 def api() -> None:
     run(
-        [require_venv(), "-m", "uvicorn", "app.main:app", "--reload", "--port", "8000"],
+        [
+            require_venv(),
+            "-m",
+            "uvicorn",
+            "app.main:app",
+            "--reload",
+            "--port",
+            str(DEMO_PORT),
+        ],
         BACKEND,
         "uvicorn",
     )
@@ -122,6 +155,7 @@ TASKS: dict[str, Callable[[], None]] = {
     "types": types,
     "data": data,
     "check": check,
+    "demo": demo,
     "api": api,
     "web": web,
 }

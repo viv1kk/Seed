@@ -47,14 +47,22 @@ export async function createPlan(
   return (await response.json()) as ParseResult;
 }
 
+/**
+ * Start a run.
+ *
+ * The seed is sent rather than left to the backend's default, because the
+ * person watching can set it and the promise is that reusing it reproduces the
+ * run exactly.
+ */
 export async function createRun(
   planId: string,
   speed = 1,
+  seed?: number,
 ): Promise<{ run_id: string }> {
   const response = await fetch("/api/runs", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ plan_id: planId, speed }),
+    body: JSON.stringify(seed === undefined ? { plan_id: planId, speed } : { plan_id: planId, speed, seed }),
   });
   if (!response.ok) throw new Error(`/api/runs returned ${response.status}`);
   return (await response.json()) as { run_id: string };

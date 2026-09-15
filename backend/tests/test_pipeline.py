@@ -281,14 +281,62 @@ class TestAggregate:
             quarter.kpis.net_revenue, abs=TOLERANCE
         )
 
-    def test_a_category_filter_narrows_to_that_category(self, derived: pl.DataFrame) -> None:
+    def test_a_category_filter_narrows_every_cut_except_the_categories(
+        self, derived: pl.DataFrame
+    ) -> None:
+        """The chart you clicked keeps its other bars. See aggregate.py.
+
+        Filtering the category cut by the selected category would leave one bar
+        and nothing to click next, so that one cut drops its own filter while
+        every other surface takes it.
+        """
         whole = aggregate(derived)
         target = whole.revenue_by_category[0].category
         filtered = aggregate(derived, Filters(category=target))
 
-        assert [row.category for row in filtered.revenue_by_category] == [target]
         assert filtered.kpis.net_revenue == pytest.approx(
             whole.revenue_by_category[0].net_revenue, abs=TOLERANCE
+        )
+        assert [row.category for row in filtered.revenue_by_category] == [
+            row.category for row in whole.revenue_by_category
+        ], "the category cut narrowed to the selected category"
+
+        # Every other surface did narrow.
+        assert sum(row.net_revenue for row in filtered.revenue_by_region) == pytest.approx(
+            filtered.kpis.net_revenue, abs=TOLERANCE
+        )
+        assert len(filtered.top_products) <= len(whole.top_products)
+
+    def test_a_region_filter_keeps_the_other_regions_on_the_region_cut(
+        self, derived: pl.DataFrame
+    ) -> None:
+        whole = aggregate(derived)
+        target = whole.revenue_by_region[0].region
+        filtered = aggregate(derived, Filters(region=target))
+
+        assert [row.region for row in filtered.revenue_by_region] == [
+            row.region for row in whole.revenue_by_region
+        ]
+        # Shares are of the cut's own total, so they still add to one.
+        assert sum(row.share for row in filtered.revenue_by_region) == pytest.approx(1.0)
+        assert filtered.kpis.net_revenue == pytest.approx(
+            whole.revenue_by_region[0].net_revenue, abs=TOLERANCE
+        )
+
+    def test_two_dimension_filters_still_narrow_each_other(
+        self, derived: pl.DataFrame
+    ) -> None:
+        """Releasing a chart's own filter must not release the other one too."""
+        whole = aggregate(derived)
+        category = whole.revenue_by_category[0].category
+        region = whole.revenue_by_region[0].region
+        both = aggregate(derived, Filters(category=category, region=region))
+
+        # The category cut dropped the category filter but kept the region one,
+        # so its total is that region's revenue rather than the whole dataset's.
+        category_total = sum(row.net_revenue for row in both.revenue_by_category)
+        assert category_total == pytest.approx(
+            whole.revenue_by_region[0].net_revenue, abs=TOLERANCE
         )
 
     def test_an_empty_selection_does_not_divide_by_zero(self, derived: pl.DataFrame) -> None:
@@ -335,7 +383,12 @@ class TestQueryEndpoint:
             # tell which request a bundle answered.
             assert quarter["filters"]["date_from"] == "2025-01-01"
 
-    def test_a_region_filter_returns_only_that_region(self) -> None:
+    def test_a_region_filter_narrows_the_run_over_the_api(self) -> None:
+        """Over the wire, and through the endpoint the dashboard actually calls.
+
+        The region cut keeps every region, because it is the chart that was
+        clicked and its own filter is released. Everything else narrows.
+        """
         with TestClient(app) as client:
             plan = client.post("/api/plans", json={"example_id": "retail-analytics"}).json()
             run_id = client.post("/api/runs", json={"plan_id": plan["plan"]["id"]}).json()["run_id"]
@@ -345,8 +398,13 @@ class TestQueryEndpoint:
             target = whole["revenue_by_region"][0]["region"]
             filtered = client.post(f"/api/runs/{run_id}/query", json={"region": target}).json()
 
-            assert [row["region"] for row in filtered["revenue_by_region"]] == [target]
-            assert filtered["revenue_by_region"][0]["share"] == pytest.approx(1.0)
+            assert [row["region"] for row in filtered["revenue_by_region"]] == [
+                row["region"] for row in whole["revenue_by_region"]
+            ]
+            assert filtered["kpis"]["net_revenue"] == pytest.approx(
+                whole["revenue_by_region"][0]["net_revenue"], rel=1e-6
+            )
+            assert filtered["rows"] < whole["rows"]
 
     def test_querying_before_the_table_exists_is_a_conflict(self) -> None:
         with TestClient(app) as client:

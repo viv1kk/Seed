@@ -62,14 +62,16 @@ Everything goes through `tasks.py`. Use these, not the underlying tools.
 python tasks.py install   # both toolchains, from scratch
 python tasks.py check     # the gate: ruff, mypy, pytest, tsc, node --test, vite build
 python tasks.py types     # regenerate frontend/src/types/events.ts from the Pydantic models
+python tasks.py demo      # build the frontend and serve everything on 8000
 python tasks.py api       # backend on 8000, reloading
 python tasks.py web       # frontend on 5173, proxying /api to 8000
 ```
 
 `make check` and the rest work identically where `make` exists; the Makefile just
-delegates. `make demo` arrives in phase 2, once `main.py` mounts the built frontend
-and one process serves everything. That is how the client sees it, so test on that
-path rather than on the Vite dev server.
+delegates. `make demo` regenerates the types, builds the frontend, and serves the
+API and the bundle from one process on 8000. That is how the client sees it, so
+test on that path rather than on the Vite dev server: the dev server proxies
+`/api`, which hides a whole class of same-origin problem until the demo.
 
 `uv` is the intended package manager and the pyproject is a uv project, but it does
 not run on every build machine (Windows Application Control blocks it on at least
