@@ -19,6 +19,8 @@ export type SeedEvent =
   | TaskStarted
   | TaskProgress
   | LogEmitted
+  | ArtifactStreaming
+  | ArtifactChunk
   | ArtifactCreated
   | TaskFailed
   | TaskRetried
@@ -217,6 +219,45 @@ export interface LogEmitted {
   level: "debug" | "info" | "warn" | "error" | "success";
   message: string;
   source: "agent" | "runtime";
+}
+/**
+ * A code artifact is about to arrive, in chunks.
+ *
+ * Optional. A runner may emit `artifact.created` on its own, as before. When
+ * it does stream, this opens the stream, `artifact.chunk` carries the text,
+ * and `artifact.created` closes it with the finished metadata.
+ *
+ * This exists for the swap path rather than for the animation. A future
+ * LlmRunner streams tokens because that is how a model emits code, so the
+ * contract has to carry chunks from the start. Adding them later would either
+ * break a frozen contract or leave the real runner behaving differently from
+ * the simulated one, which is the one thing the seam must not do.
+ *
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ArtifactStreaming".
+ */
+export interface ArtifactStreaming {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "artifact.streaming";
+  artifact_id: string;
+  path: string;
+  lang?: string | null;
+  produced_by: "architect" | "etl" | "analytics" | "dashboard";
+  task_id: string;
+}
+/**
+ * This interface was referenced by `SeedContract`'s JSON-Schema
+ * via the `definition` "ArtifactChunk".
+ */
+export interface ArtifactChunk {
+  run_id: string;
+  seq: number;
+  at: number;
+  type: "artifact.chunk";
+  artifact_id: string;
+  text: string;
 }
 /**
  * This interface was referenced by `SeedContract`'s JSON-Schema

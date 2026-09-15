@@ -11,7 +11,7 @@ import pytest
 
 from app.core.reducer import apply_event, apply_events, initial_state, summarise
 from app.core.types import RunStarted, SeedEvent
-from tests.conftest import EventFixture, load_fixture
+from tests.conftest import FIXTURE_FILES, EventFixture, load_fixture
 
 
 def test_fixture_replays_to_its_expected_state(event_fixture: EventFixture) -> None:
@@ -56,20 +56,14 @@ def test_apply_event_does_not_mutate_the_state_it_is_given() -> None:
     assert summarise(before) == snapshot
 
 
-@pytest.mark.parametrize(
-    "filename",
-    ["phase0_events.json", "phase0_events_full.json", "phase0_events_failed.json"],
-)
+@pytest.mark.parametrize("filename", FIXTURE_FILES)
 def test_fixture_seq_numbers_are_monotonic_from_zero(filename: str) -> None:
     """Contract rule 1. A fixture that breaks it is not a valid run."""
     events = load_fixture(filename).events
     assert [event.seq for event in events] == list(range(len(events)))
 
 
-@pytest.mark.parametrize(
-    "filename",
-    ["phase0_events.json", "phase0_events_full.json", "phase0_events_failed.json"],
-)
+@pytest.mark.parametrize("filename", FIXTURE_FILES)
 def test_fixture_simulated_time_never_goes_backwards(filename: str) -> None:
     ats = [event.at for event in load_fixture(filename).events]
     assert ats == sorted(ats)
@@ -83,7 +77,7 @@ def test_every_event_variant_is_covered_by_the_fixtures() -> None:
     handled but never actually replayed.
     """
     seen: set[str] = set()
-    for filename in ("phase0_events.json", "phase0_events_full.json", "phase0_events_failed.json"):
+    for filename in FIXTURE_FILES:
         for event in load_fixture(filename).events:
             seen.add(event.type)
 

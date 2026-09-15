@@ -10,6 +10,7 @@ demonstrated in the phase 2 gate and it only holds if every draw comes from a
 ``Random`` handed down through ``AgentContext``.
 """
 
+import hashlib
 import random
 from typing import Final
 
@@ -28,6 +29,25 @@ JITTER_HI: Final[float] = 1.6
 def make_rng(seed: int) -> Rng:
     """Build the run's generator. One per run, created by the run registry."""
     return random.Random(seed)
+
+
+def derive_rng(seed: int, key: str) -> Rng:
+    """A generator of its own for one task, from the run seed and the task id.
+
+    Handing every runner the same ``Random`` looks harmless and is not. Two
+    agents working at once draw from it in whatever order the event loop happens
+    to schedule them, so the same seed stops producing the same run: the pacing,
+    the pauses and therefore the timestamps all shift depending on real timing.
+    It is the kind of bug that survives a demo and ruins a rehearsal.
+
+    Deriving per task instead makes a task's narration a function of the seed
+    and its own id, and nothing else. Concurrency cannot reach it.
+
+    The digest is sha256 rather than ``hash()`` because Python salts string
+    hashing per process, which would make runs differ between restarts.
+    """
+    digest = hashlib.sha256(f"{seed}:{key}".encode()).digest()
+    return random.Random(int.from_bytes(digest[:8], "big"))
 
 
 def jitter(

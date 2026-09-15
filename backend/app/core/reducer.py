@@ -22,7 +22,9 @@ from app.core.types import (
     AgentIdle,
     AgentSpawned,
     Artifact,
+    ArtifactChunk,
     ArtifactCreated,
+    ArtifactStreaming,
     LogEmitted,
     LogLevel,
     Plan,
@@ -62,6 +64,23 @@ class AgentView:
 
 
 @dataclass(frozen=True)
+class StreamingArtifact:
+    """A code artifact arriving in chunks.
+
+    ``text`` accumulates as chunks land and is kept after ``complete`` flips, so
+    a viewer can show what streamed without refetching the finished body.
+    """
+
+    artifact_id: str
+    path: str
+    lang: str | None
+    produced_by: AgentId
+    task_id: str
+    text: str
+    complete: bool
+
+
+@dataclass(frozen=True)
 class RunState:
     run_id: str | None
     seed: int | None
@@ -79,6 +98,7 @@ class RunState:
     task_attempts: Mapping[str, int]
     agents: Mapping[AgentId, AgentView]
     artifacts: tuple[Artifact, ...]
+    streaming: Mapping[str, StreamingArtifact]
     logs: tuple[LogLine, ...]
     retry_count: int
     last_seq: int
@@ -102,6 +122,7 @@ def initial_state() -> RunState:
         task_attempts={},
         agents={},
         artifacts=(),
+        streaming={},
         logs=(),
         retry_count=0,
         last_seq=-1,
@@ -189,8 +210,52 @@ def apply_event(state: RunState, event: SeedEvent) -> RunState:
                 ),
             )
 
+        case ArtifactStreaming():
+            return replace(
+                base,
+                streaming={
+                    **base.streaming,
+                    event.artifact_id: StreamingArtifact(
+                        artifact_id=event.artifact_id,
+                        path=event.path,
+                        lang=event.lang,
+                        produced_by=event.produced_by,
+                        task_id=event.task_id,
+                        text="",
+                        complete=False,
+                    ),
+                },
+            )
+
+        case ArtifactChunk():
+            open_stream = base.streaming.get(event.artifact_id)
+            if open_stream is None:
+                # Every stream is opened by an artifact.streaming before any
+                # chunk, and replay always starts at seq=0, so this is
+                # unreachable in a well formed run. Drop it rather than invent
+                # metadata we were not given.
+                return base
+            return replace(
+                base,
+                streaming={
+                    **base.streaming,
+                    event.artifact_id: replace(
+                        open_stream, text=open_stream.text + event.text
+                    ),
+                },
+            )
+
         case ArtifactCreated():
-            return replace(base, artifacts=(*base.artifacts, event.artifact))
+            streamed = base.streaming.get(event.artifact.id)
+            streaming = base.streaming
+            if streamed is not None:
+                streaming = {
+                    **base.streaming,
+                    event.artifact.id: replace(streamed, complete=True),
+                }
+            return replace(
+                base, artifacts=(*base.artifacts, event.artifact), streaming=streaming
+            )
 
         case TaskFailed():
             # A recoverable failure reads as retrying, because a task.retried is
@@ -276,6 +341,9 @@ def summarise(state: RunState) -> dict[str, object]:
         "artifact_count": len(state.artifacts),
         "artifact_ids": [artifact.id for artifact in state.artifacts],
         "log_count": len(state.logs),
+        "streaming_ids": sorted(state.streaming),
+        "streamed_chars": sum(len(s.text) for s in state.streaming.values()),
+        "streams_complete": sorted(i for i, s in state.streaming.items() if s.complete),
         "agents_spawned": sorted(state.agents),
         "agents_idle": sorted(a for a, view in state.agents.items() if view.idle),
         "plan_task_count": len(state.plan.tasks) if state.plan else 0,

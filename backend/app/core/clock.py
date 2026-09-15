@@ -4,16 +4,26 @@ Runners never call ``asyncio.sleep`` directly. Every wait goes through
 ``Clock.sleep``, which is what makes pause, resume, cancel, and the speed
 multiplier work at all.
 
-Two properties matter:
+Three properties matter:
 
 * ``elapsed_ms`` is *simulated* time and is unaffected by ``speed``. A run at 5x
   reports the same ``at`` values on its events as the same run at 1x, so logs
   stay comparable across speeds (event contract rule 2).
 * ``cancel()`` raises ``asyncio.CancelledError`` into whoever is sleeping, and
   that exception must be allowed to propagate all the way out of the runner.
+* concurrent sleepers share one timeline. Two agents each sleeping a second is
+  one second of simulated time, not two.
+
+That last one is why ``fork`` exists. A single accumulating counter is wrong the
+moment two tasks run at once: both would add their sleeps to it, and a run with
+two agents working in parallel would report timestamps racing ahead at double
+speed. So each runner gets its own hand on the same clock, with its own
+position, and the run's simulated time is the furthest any hand has reached.
+Pause, cancel and speed stay shared, because those are properties of the run.
 """
 
 import asyncio
+from dataclasses import dataclass, field
 from typing import Final
 
 # Real seconds per wait slice. A long sleep is served as a run of slices so that
@@ -35,48 +45,87 @@ class ClockCancelled(asyncio.CancelledError):
     """Raised into a sleeper when the run is cancelled."""
 
 
+@dataclass
+class _Shared:
+    """Run-wide clock state. One instance per run, held by every hand."""
+
+    speed: int
+    cancelled: asyncio.Event = field(default_factory=asyncio.Event)
+    resumed: asyncio.Event = field(default_factory=asyncio.Event)
+    hands: list["Clock"] = field(default_factory=list)
+
+
 class Clock:
-    def __init__(self, speed: int = 1) -> None:
-        if speed < 1:
-            raise ValueError("speed must be at least 1")
-        self._speed = speed
-        self._elapsed_ms = 0
-        self._cancelled = asyncio.Event()
-        self._resumed = asyncio.Event()
-        self._resumed.set()
+    def __init__(
+        self,
+        speed: int = 1,
+        *,
+        _shared: _Shared | None = None,
+        _position_ms: int = 0,
+    ) -> None:
+        if _shared is None:
+            if speed < 1:
+                raise ValueError("speed must be at least 1")
+            _shared = _Shared(speed=speed)
+            _shared.resumed.set()
+        self._shared = _shared
+        self._elapsed_ms = _position_ms
+        self._shared.hands.append(self)
+
+    def fork(self, at_ms: int | None = None) -> "Clock":
+        """A second hand on the same run clock.
+
+        Each runner gets one. It shares pause, cancel and speed with every other
+        hand, and keeps its own position so that parallel work does not make
+        simulated time run fast.
+
+        ``at_ms`` sets where the new hand starts. The orchestrator passes an
+        explicit position rather than taking the default, because the default
+        reads the furthest hand, and a hand that is mid-sleep sits at a position
+        that depends on real elapsed time. Forking from it would make a task's
+        start time vary with the speed multiplier, and event contract rule 2
+        says a run at 5x reports the same timestamps as the same run at 1x.
+        """
+        position = self.run_elapsed_ms if at_ms is None else at_ms
+        return Clock(_shared=self._shared, _position_ms=position)
 
     @property
     def speed(self) -> int:
-        return self._speed
+        return self._shared.speed
 
     @property
     def elapsed_ms(self) -> int:
-        """Simulated milliseconds since the run began. Speed-independent."""
+        """This hand's own simulated position, in ms since the run began."""
         return self._elapsed_ms
 
     @property
+    def run_elapsed_ms(self) -> int:
+        """The run's simulated clock: the furthest any hand has reached."""
+        return max(hand._elapsed_ms for hand in self._shared.hands)
+
+    @property
     def is_paused(self) -> bool:
-        return not self._resumed.is_set()
+        return not self._shared.resumed.is_set()
 
     @property
     def is_cancelled(self) -> bool:
-        return self._cancelled.is_set()
+        return self._shared.cancelled.is_set()
 
     def set_speed(self, speed: int) -> None:
         if speed < 1:
             raise ValueError("speed must be at least 1")
-        self._speed = speed
+        self._shared.speed = speed
 
     def pause(self) -> None:
-        self._resumed.clear()
+        self._shared.resumed.clear()
 
     def resume(self) -> None:
-        self._resumed.set()
+        self._shared.resumed.set()
 
     def cancel(self) -> None:
-        self._cancelled.set()
+        self._shared.cancelled.set()
         # Release anyone parked on the pause gate so they reach the cancel check.
-        self._resumed.set()
+        self._shared.resumed.set()
 
     async def sleep(self, ms: int) -> None:
         """Advance simulated time by ``ms``, really waiting ``ms / speed``.
@@ -97,11 +146,11 @@ class Clock:
 
             # Speed is re-read every slice, so a change partway through a sleep
             # takes effect on the rest of it.
-            real_remaining = remaining / 1000 / self._speed
+            real_remaining = remaining / 1000 / self.speed
             real_slice = min(SLICE_SECONDS, real_remaining)
             await self._wait_real(real_slice)
 
-            remaining -= real_slice * 1000 * self._speed
+            remaining -= real_slice * 1000 * self.speed
             # Simulated time advances during the sleep, not only at the end, so
             # an event emitted by another task mid-sleep gets a sensible `at`.
             self._elapsed_ms = started_at + round(ms - max(remaining, 0.0))
@@ -114,16 +163,16 @@ class Clock:
     async def _wait_real(self, seconds: float) -> None:
         """Sleep for real, but wake immediately if the run is cancelled."""
         try:
-            await asyncio.wait_for(self._cancelled.wait(), timeout=seconds)
+            await asyncio.wait_for(self._shared.cancelled.wait(), timeout=seconds)
         except TimeoutError:
             return  # The normal path: the slice elapsed without a cancel.
         raise ClockCancelled
 
     async def _await_resume(self) -> None:
-        if self._resumed.is_set():
+        if self._shared.resumed.is_set():
             return
-        await self._resumed.wait()
+        await self._shared.resumed.wait()
 
     def _raise_if_cancelled(self) -> None:
-        if self._cancelled.is_set():
+        if self._shared.cancelled.is_set():
             raise ClockCancelled

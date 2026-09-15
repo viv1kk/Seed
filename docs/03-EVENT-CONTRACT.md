@@ -150,6 +150,19 @@ class LogEmitted(_Base):
     message: str
     source: Literal["agent", "runtime"]
 
+class ArtifactStreaming(_Base):
+    type: Literal["artifact.streaming"] = "artifact.streaming"
+    artifact_id: str
+    path: str
+    lang: str | None = None
+    produced_by: AgentId
+    task_id: str
+
+class ArtifactChunk(_Base):
+    type: Literal["artifact.chunk"] = "artifact.chunk"
+    artifact_id: str
+    text: str
+
 class ArtifactCreated(_Base):
     type: Literal["artifact.created"] = "artifact.created"
     artifact: Artifact
@@ -190,7 +203,8 @@ class RunFailed(_Base):
 SeedEvent = Annotated[
     Union[
         RunStarted, PlanBuilt, AgentSpawned, TaskReady, TaskStarted, TaskProgress,
-        LogEmitted, ArtifactCreated, TaskFailed, TaskRetried, TaskCompleted,
+        LogEmitted, ArtifactStreaming, ArtifactChunk, ArtifactCreated,
+        TaskFailed, TaskRetried, TaskCompleted,
         AgentIdle, RunCompleted, RunFailed,
     ],
     Field(discriminator="type"),
@@ -204,8 +218,13 @@ SeedEvent = Annotated[
 3. Every `task.started` has exactly one matching `task.completed` or `task.failed` with `recoverable=False`.
 4. `task.failed` with `recoverable=True` is followed by `task.retried` and then a terminal event for the same task.
 5. `artifact.created` precedes the `task.completed` of the producing task.
-6. `run.completed` is last. Nothing follows it.
-7. Numbers inside `metrics` and inside log messages originate from a `WorkKernel` return value. Never a literal.
+6. Streaming an artifact is optional. When a runner does stream one, the order is
+   `artifact.streaming`, then one or more `artifact.chunk` for that
+   `artifact_id`, then `artifact.created`. A runner may still emit
+   `artifact.created` alone. Chunks carry no metadata beyond the id, so the
+   opener always precedes them, which replay from `seq=0` guarantees.
+7. `run.completed` is last. Nothing follows it.
+8. Numbers inside `metrics` and inside log messages originate from a `WorkKernel` return value. Never a literal.
 
 ## Parse results
 

@@ -38,6 +38,9 @@ export interface StateSummary {
   artifact_count: number;
   artifact_ids: string[];
   log_count: number;
+  streaming_ids: string[];
+  streamed_chars: number;
+  streams_complete: string[];
   agents_spawned: string[];
   agents_idle: string[];
   plan_task_count: number;
@@ -63,6 +66,12 @@ export function summarise(state: RunState): StateSummary {
     artifact_count: state.artifacts.length,
     artifact_ids: state.artifacts.map((artifact) => artifact.id),
     log_count: state.logs.length,
+    streaming_ids: Object.keys(state.streaming).sort(),
+    streamed_chars: Object.values(state.streaming).reduce((n, s) => n + s.text.length, 0),
+    streams_complete: Object.values(state.streaming)
+      .filter((s) => s.complete)
+      .map((s) => s.artifactId)
+      .sort(),
     agents_spawned: agentIds,
     agents_idle: agentIds.filter((id) => state.agents[id as keyof typeof state.agents]?.idle),
     plan_task_count: state.plan === null ? 0 : Object.keys(state.plan.tasks).length,

@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Suppresses the automatic /favicon.ico request, which would otherwise be
+         a 404 in the console on every page load. A real icon is a phase 4
+         concern; a console kept clean is not. -->
+    <link rel="icon" href="data:," />
     <title>Seed</title>
   </head>
   <body>

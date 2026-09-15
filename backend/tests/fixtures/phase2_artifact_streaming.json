@@ -1,0 +1,138 @@
+{
+  "_comment": [
+    "A code artifact streamed in chunks: artifact.streaming opens it, chunks",
+    "carry the source, artifact.created closes it with the finished metadata.",
+    "",
+    "THE 'expected' BLOCK IS HAND-WRITTEN AND MUST STAY HAND-WRITTEN.",
+    "Never paste summarise() output into it. See the note in phase0_events.json.",
+    "",
+    "streamed_chars is 51, counted by hand from the three chunks below:",
+    "  'import polars as pl\\n'      19 + 1  = 20",
+    "  '\\n\\ndef clean(df):\\n'        2 + 14 + 1 = 17",
+    "  '    return df\\n'            4 + 9 + 1 = 14"
+  ],
+
+  "name": "phase2-artifact-streaming",
+  "description": "One code artifact streamed in three chunks, then created.",
+
+  "events": [
+    {
+      "type": "run.started",
+      "run_id": "run_phase2_stream",
+      "seq": 0,
+      "at": 0,
+      "requirement_title": "Streaming artifacts",
+      "seed": 1337,
+      "speed": 1
+    },
+    {
+      "type": "agent.spawned",
+      "run_id": "run_phase2_stream",
+      "seq": 1,
+      "at": 10,
+      "agent_id": "etl",
+      "role": "ETL Engineer",
+      "assigned_task_ids": ["1.1"]
+    },
+    {
+      "type": "task.started",
+      "run_id": "run_phase2_stream",
+      "seq": 2,
+      "at": 20,
+      "task_id": "1.1",
+      "agent_id": "etl"
+    },
+    {
+      "type": "artifact.streaming",
+      "run_id": "run_phase2_stream",
+      "seq": 3,
+      "at": 120,
+      "artifact_id": "art_clean_py",
+      "path": "pipeline/clean.py",
+      "lang": "python",
+      "produced_by": "etl",
+      "task_id": "1.1"
+    },
+    {
+      "type": "artifact.chunk",
+      "run_id": "run_phase2_stream",
+      "seq": 4,
+      "at": 160,
+      "artifact_id": "art_clean_py",
+      "text": "import polars as pl\n"
+    },
+    {
+      "type": "artifact.chunk",
+      "run_id": "run_phase2_stream",
+      "seq": 5,
+      "at": 210,
+      "artifact_id": "art_clean_py",
+      "text": "\n\ndef clean(df):\n"
+    },
+    {
+      "type": "artifact.chunk",
+      "run_id": "run_phase2_stream",
+      "seq": 6,
+      "at": 260,
+      "artifact_id": "art_clean_py",
+      "text": "    return df\n"
+    },
+    {
+      "type": "artifact.created",
+      "run_id": "run_phase2_stream",
+      "seq": 7,
+      "at": 300,
+      "artifact": {
+        "id": "art_clean_py",
+        "kind": "code",
+        "path": "pipeline/clean.py",
+        "produced_by": "etl",
+        "task_id": "1.1",
+        "bytes": 51,
+        "lang": "python"
+      }
+    },
+    {
+      "type": "task.completed",
+      "run_id": "run_phase2_stream",
+      "seq": 8,
+      "at": 320,
+      "task_id": "1.1",
+      "agent_id": "etl",
+      "metrics": { "duration_ms": 300 }
+    },
+    {
+      "type": "run.completed",
+      "run_id": "run_phase2_stream",
+      "seq": 9,
+      "at": 330,
+      "duration_ms": 330,
+      "artifact_ids": ["art_clean_py"]
+    }
+  ],
+
+  "expected": {
+    "last_seq": 9,
+    "run_id": "run_phase2_stream",
+    "seed": 1337,
+    "speed": 1,
+    "requirement_title": "Streaming artifacts",
+    "started": true,
+    "completed": true,
+    "error": null,
+    "duration_ms": 330,
+    "task_status": { "1.1": "completed" },
+    "task_agent": { "1.1": "etl" },
+    "task_attempts": {},
+    "retry_count": 0,
+    "artifact_count": 1,
+    "artifact_ids": ["art_clean_py"],
+    "log_count": 0,
+    "streaming_ids": ["art_clean_py"],
+    "streamed_chars": 51,
+    "streams_complete": ["art_clean_py"],
+    "agents_spawned": ["etl"],
+    "agents_idle": [],
+    "plan_task_count": 0
+  }
+}

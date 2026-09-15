@@ -172,6 +172,34 @@ class LogEmitted(_Base):
     source: Literal["agent", "runtime"]
 
 
+class ArtifactStreaming(_Base):
+    """A code artifact is about to arrive, in chunks.
+
+    Optional. A runner may emit `artifact.created` on its own, as before. When
+    it does stream, this opens the stream, `artifact.chunk` carries the text,
+    and `artifact.created` closes it with the finished metadata.
+
+    This exists for the swap path rather than for the animation. A future
+    LlmRunner streams tokens because that is how a model emits code, so the
+    contract has to carry chunks from the start. Adding them later would either
+    break a frozen contract or leave the real runner behaving differently from
+    the simulated one, which is the one thing the seam must not do.
+    """
+
+    type: Literal["artifact.streaming"] = "artifact.streaming"
+    artifact_id: str
+    path: str
+    lang: str | None = None
+    produced_by: AgentId
+    task_id: str
+
+
+class ArtifactChunk(_Base):
+    type: Literal["artifact.chunk"] = "artifact.chunk"
+    artifact_id: str
+    text: str
+
+
 class ArtifactCreated(_Base):
     type: Literal["artifact.created"] = "artifact.created"
     artifact: Artifact
@@ -225,6 +253,8 @@ SeedEvent = Annotated[
         TaskStarted,
         TaskProgress,
         LogEmitted,
+        ArtifactStreaming,
+        ArtifactChunk,
         ArtifactCreated,
         TaskFailed,
         TaskRetried,
@@ -241,8 +271,10 @@ __all__ = [
     "AgentIdle",
     "AgentSpawned",
     "Artifact",
+    "ArtifactChunk",
     "ArtifactCreated",
     "ArtifactKind",
+    "ArtifactStreaming",
     "Constraint",
     "ExampleSummary",
     "LogEmitted",

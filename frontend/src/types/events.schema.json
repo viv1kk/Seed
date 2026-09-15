@@ -226,6 +226,40 @@
       "title": "Artifact",
       "type": "object"
     },
+    "ArtifactChunk": {
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "artifact.chunk",
+          "default": "artifact.chunk",
+          "type": "string"
+        },
+        "artifact_id": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "artifact_id",
+        "text",
+        "type"
+      ],
+      "title": "ArtifactChunk",
+      "type": "object"
+    },
     "ArtifactCreated": {
       "properties": {
         "run_id": {
@@ -254,6 +288,66 @@
         "type"
       ],
       "title": "ArtifactCreated",
+      "type": "object"
+    },
+    "ArtifactStreaming": {
+      "description": "A code artifact is about to arrive, in chunks.\n\nOptional. A runner may emit `artifact.created` on its own, as before. When\nit does stream, this opens the stream, `artifact.chunk` carries the text,\nand `artifact.created` closes it with the finished metadata.\n\nThis exists for the swap path rather than for the animation. A future\nLlmRunner streams tokens because that is how a model emits code, so the\ncontract has to carry chunks from the start. Adding them later would either\nbreak a frozen contract or leave the real runner behaving differently from\nthe simulated one, which is the one thing the seam must not do.",
+      "properties": {
+        "run_id": {
+          "type": "string"
+        },
+        "seq": {
+          "type": "integer"
+        },
+        "at": {
+          "type": "integer"
+        },
+        "type": {
+          "const": "artifact.streaming",
+          "default": "artifact.streaming",
+          "type": "string"
+        },
+        "artifact_id": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "lang": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "produced_by": {
+          "enum": [
+            "architect",
+            "etl",
+            "analytics",
+            "dashboard"
+          ],
+          "type": "string"
+        },
+        "task_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "run_id",
+        "seq",
+        "at",
+        "artifact_id",
+        "path",
+        "produced_by",
+        "task_id",
+        "type"
+      ],
+      "title": "ArtifactStreaming",
       "type": "object"
     },
     "Constraint": {
@@ -991,7 +1085,9 @@
         "mapping": {
           "agent.idle": "#/definitions/AgentIdle",
           "agent.spawned": "#/definitions/AgentSpawned",
+          "artifact.chunk": "#/definitions/ArtifactChunk",
           "artifact.created": "#/definitions/ArtifactCreated",
+          "artifact.streaming": "#/definitions/ArtifactStreaming",
           "log.emitted": "#/definitions/LogEmitted",
           "plan.built": "#/definitions/PlanBuilt",
           "run.completed": "#/definitions/RunCompleted",
@@ -1027,6 +1123,12 @@
         },
         {
           "$ref": "#/definitions/LogEmitted"
+        },
+        {
+          "$ref": "#/definitions/ArtifactStreaming"
+        },
+        {
+          "$ref": "#/definitions/ArtifactChunk"
         },
         {
           "$ref": "#/definitions/ArtifactCreated"

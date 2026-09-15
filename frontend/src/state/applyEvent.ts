@@ -91,8 +91,49 @@ export function applyEvent(state: RunState, event: SeedEvent): RunState {
         ],
       };
 
-    case "artifact.created":
-      return { ...base, artifacts: [...base.artifacts, event.artifact] };
+    case "artifact.streaming":
+      return {
+        ...base,
+        streaming: {
+          ...base.streaming,
+          [event.artifact_id]: {
+            artifactId: event.artifact_id,
+            path: event.path,
+            lang: event.lang ?? null,
+            producedBy: event.produced_by,
+            taskId: event.task_id,
+            text: "",
+            complete: false,
+          },
+        },
+      };
+
+    case "artifact.chunk": {
+      const open = base.streaming[event.artifact_id];
+      // Every stream is opened by an artifact.streaming before any chunk, and
+      // replay always starts at seq=0, so this is unreachable in a well formed
+      // run. Drop it rather than invent metadata we were not given.
+      if (open === undefined) return base;
+      return {
+        ...base,
+        streaming: {
+          ...base.streaming,
+          [event.artifact_id]: { ...open, text: open.text + event.text },
+        },
+      };
+    }
+
+    case "artifact.created": {
+      const streamed = base.streaming[event.artifact.id];
+      return {
+        ...base,
+        artifacts: [...base.artifacts, event.artifact],
+        streaming:
+          streamed === undefined
+            ? base.streaming
+            : { ...base.streaming, [event.artifact.id]: { ...streamed, complete: true } },
+      };
+    }
 
     case "task.failed":
       // A recoverable failure reads as retrying, because a task.retried is

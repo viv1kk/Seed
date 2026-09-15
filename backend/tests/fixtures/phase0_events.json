@@ -184,6 +184,9 @@
     "artifact_count": 1,
     "artifact_ids": ["art_clean_py"],
     "log_count": 1,
+    "streaming_ids": [],
+    "streamed_chars": 0,
+    "streams_complete": [],
     "agents_spawned": ["etl"],
     "agents_idle": [],
     "plan_task_count": 2

@@ -32,6 +32,7 @@ const FIXTURE_FILES = [
   "phase0_events.json",
   "phase0_events_full.json",
   "phase0_events_failed.json",
+  "phase2_artifact_streaming.json",
 ] as const;
 
 interface Fixture {

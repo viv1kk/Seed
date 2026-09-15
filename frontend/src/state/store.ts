@@ -33,7 +33,22 @@ export const seedStore = createStore<SeedStore>()((set) => ({
   run: initialState(),
   applyEvents: (events) => {
     if (events.length === 0) return;
-    set((state) => ({ run: applyEvents(state.run, events) }));
+    set((state) => {
+      // Drop anything already applied.
+      //
+      // Every connection to a run replays it from seq 0, and there can be more
+      // than one: EventSource reconnects on its own, and React remounts effects
+      // in development. Without this the log silently doubles, which showed up
+      // first as duplicate React keys. `seq` is monotonic per run (contract rule
+      // 1), so the last one applied is all that has to be remembered.
+      //
+      // This is idempotency on a replayable stream, not a decision about the
+      // run. The reducer itself stays a plain fold, which is what keeps it
+      // checkable against the Python one.
+      const fresh = events.filter((event) => event.seq > state.run.lastSeq);
+      if (fresh.length === 0) return state;
+      return { run: applyEvents(state.run, fresh) };
+    });
   },
   reset: () => set({ run: initialState() }),
 }));

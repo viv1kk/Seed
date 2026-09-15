@@ -29,6 +29,22 @@ export interface LogLine {
   taskId: string | null;
 }
 
+/**
+ * A code artifact arriving in chunks.
+ *
+ * `text` accumulates as chunks land and is kept after `complete` flips, so a
+ * viewer can show what streamed without refetching the finished body.
+ */
+export interface StreamingArtifact {
+  artifactId: string;
+  path: string;
+  lang: string | null;
+  producedBy: AgentId;
+  taskId: string;
+  text: string;
+  complete: boolean;
+}
+
 export interface AgentView {
   agentId: AgentId;
   role: string;
@@ -53,6 +69,7 @@ export interface RunState {
   taskAttempts: Readonly<Record<string, number>>;
   agents: Readonly<Partial<Record<AgentId, AgentView>>>;
   artifacts: readonly Artifact[];
+  streaming: Readonly<Record<string, StreamingArtifact>>;
   logs: readonly LogLine[];
   retryCount: number;
   lastSeq: number;
@@ -76,6 +93,7 @@ export function initialState(): RunState {
     taskAttempts: {},
     agents: {},
     artifacts: [],
+    streaming: {},
     logs: [],
     retryCount: 0,
     lastSeq: -1,

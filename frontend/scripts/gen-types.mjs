@@ -19,6 +19,7 @@ import { compile } from "json-schema-to-typescript";
 const here = dirname(fileURLToPath(import.meta.url));
 const schemaPath = resolve(here, "../src/types/events.schema.json");
 const outPath = resolve(here, "../src/types/events.ts");
+const namesPath = resolve(here, "../src/types/eventTypes.ts");
 
 const BANNER = `/**
  * GENERATED FILE. DO NOT EDIT.
@@ -39,6 +40,8 @@ const EXPECTED_EVENT_TYPES = [
   "task.started",
   "task.progress",
   "log.emitted",
+  "artifact.streaming",
+  "artifact.chunk",
   "artifact.created",
   "task.failed",
   "task.retried",
@@ -63,6 +66,35 @@ let ts = await compile(schema, "SeedContract", {
 ts = ts.replace(/\r\n/g, "\n");
 
 await writeFile(outPath, ts, "utf8");
+
+// The same names again, as runtime values.
+//
+// The SSE stream sets `event:` to the event type, per docs/03-EVENT-CONTRACT.md,
+// which means the browser dispatches a typed event and `EventSource.onmessage`
+// never fires. Subscribing therefore needs an actual list of names at runtime,
+// and a hand-written one would drift from the contract silently: a new event
+// type would simply never reach the store.
+//
+// Taken from the union's discriminator mapping, so it is the schema's own list.
+const mapping = schema.definitions?.SeedEvent?.discriminator?.mapping ?? {};
+const names = Object.keys(mapping).sort();
+const namesFile = [
+  BANNER,
+  "",
+  'import type { SeedEvent } from "./events.ts";',
+  "",
+  "/** Every event name on the wire. Used to attach EventSource listeners. */",
+  'export const EVENT_TYPES: readonly SeedEvent["type"][] = [',
+  ...names.map((name) => `  ${JSON.stringify(name)},`),
+  "];",
+  "",
+].join("\n");
+
+await writeFile(
+  namesPath,
+  namesFile,
+  "utf8",
+);
 
 // ---------------------------------------------------------------- verify
 
@@ -115,6 +147,15 @@ if (problems.length > 0) {
   process.exit(1);
 }
 
+if (names.length !== EXPECTED_EVENT_TYPES.length) {
+  console.error(
+    `the discriminator mapping lists ${names.length} names but ` +
+      `${EXPECTED_EVENT_TYPES.length} were expected`,
+  );
+  process.exit(1);
+}
+
 console.log(
   `events.ts written: SeedEvent discriminates over ${EXPECTED_EVENT_TYPES.length} literal types.`,
 );
+console.log(`eventTypes.ts written: ${names.length} runtime event names.`);

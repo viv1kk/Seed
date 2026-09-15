@@ -8,6 +8,16 @@
 
 import type { ExampleSummary, ParseResult } from "../types/events.ts";
 
+export type ControlAction = "pause" | "resume" | "cancel" | "speed";
+
+export interface RunControlState {
+  run_id: string;
+  action: string;
+  speed: number;
+  paused: boolean;
+  cancelled: boolean;
+}
+
 async function getJson<T>(path: string): Promise<T> {
   const response = await fetch(path);
   if (!response.ok) throw new Error(`${path} returned ${response.status}`);
@@ -35,4 +45,38 @@ export async function createPlan(
   });
   if (!response.ok) throw new Error(`/api/plans returned ${response.status}`);
   return (await response.json()) as ParseResult;
+}
+
+export async function createRun(
+  planId: string,
+  speed = 1,
+): Promise<{ run_id: string }> {
+  const response = await fetch("/api/runs", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ plan_id: planId, speed }),
+  });
+  if (!response.ok) throw new Error(`/api/runs returned ${response.status}`);
+  return (await response.json()) as { run_id: string };
+}
+
+/**
+ * Pause, resume, cancel, or change speed.
+ *
+ * The backend owns all of it. Nothing here tracks whether a run is paused; the
+ * answer comes back on the response and, for anything that matters, on the
+ * event stream.
+ */
+export async function controlRun(
+  runId: string,
+  action: ControlAction,
+  value?: number,
+): Promise<RunControlState> {
+  const response = await fetch(`/api/runs/${runId}/control`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action, value: value ?? null }),
+  });
+  if (!response.ok) throw new Error(`control returned ${response.status}`);
+  return (await response.json()) as RunControlState;
 }

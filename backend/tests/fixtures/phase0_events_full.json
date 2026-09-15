@@ -204,6 +204,9 @@
     "artifact_count": 1,
     "artifact_ids": ["art_dash_spec"],
     "log_count": 0,
+    "streaming_ids": [],
+    "streamed_chars": 0,
+    "streams_complete": [],
     "agents_spawned": ["dashboard", "etl"],
     "agents_idle": ["dashboard", "etl"],
     "plan_task_count": 2
